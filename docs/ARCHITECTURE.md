@@ -158,7 +158,7 @@ docs/ARCHITECTURE.md   # this document, committed to the repo
 
 **Page metadata & outline:** `components/page-meta` bar (favorites, last-viewed timestamp, metadata). `components/editor/OutlinePanel.tsx` — DOM-driven MutationObserver + IntersectionObserver for heading-level TOC; closes on nav.
 
-**Desktop:** `desktop/launch.sh` / `stop.sh` scripts; "Knowledge Hub.app" installed to `~/Applications`. Production server port 3777, Chrome app-mode window, logs at `~/Library/Logs/KnowledgeHub.log`.
+**Desktop:** real Electron app (macOS only), own npm package at `desktop/electron/` (electron + electron-builder devDeps, not part of the root Next.js app); main process `desktop/electron/src/main.js` ports the `launch.sh`/`stop.sh` startup sequence (colima → Supabase → `next start -p 3777`, idempotent reuse, detached server so quitting the app doesn't kill it). Installed as "Knowledge Hub.app" to `~/Applications` (ad-hoc signed); old Chrome-app-mode shim kept as fallback at "Knowledge Hub (Chrome).app". Logs at `~/Library/Logs/KnowledgeHub.log`. See `desktop/README.md`.
 
 ## Addendum — Phase 3 AI assistant (built 2026-07-03)
 

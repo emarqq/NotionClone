@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -38,4 +39,11 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# electron desktop build output
+desktop/electron/dist/
+desktop/electron/out/
+
+# electron-builder signing artifacts
+*.keychain
 next-env.d.ts

@@ -1,0 +1,32 @@
+{
+  "name": "knowledge-hub-electron",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Electron shell for Knowledge Hub — wraps the local Next.js app running at http://127.0.0.1:3777.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac dir"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.erik.knowledgehub",
+    "productName": "Knowledge Hub",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": "dir",
+      "icon": "../icon.icns",
+      "identity": null,
+      "category": "public.app-category.productivity"
+    }
+  }
+}
