@@ -61,17 +61,22 @@ export default function PageTree(props: PageTreeProps) {
             onExpand={onExpand}
           />
           {expandedIds.has(node.id) && node.children.length > 0 && (
-            <PageTree
-              nodes={node.children}
-              depth={depth + 1}
-              parentId={node.id}
-              spaceId={spaceId}
-              spaceSlug={spaceSlug}
-              activePageId={activePageId}
-              expandedIds={expandedIds}
-              onToggle={onToggle}
-              onExpand={onExpand}
-            />
+            <div
+              className="border-l border-neutral-200/70 dark:border-neutral-800/70"
+              style={{ marginLeft: depth * 12 + 12 }}
+            >
+              <PageTree
+                nodes={node.children}
+                depth={depth + 1}
+                parentId={node.id}
+                spaceId={spaceId}
+                spaceSlug={spaceSlug}
+                activePageId={activePageId}
+                expandedIds={expandedIds}
+                onToggle={onToggle}
+                onExpand={onExpand}
+              />
+            </div>
           )}
           <DropZone
             spaceId={spaceId}

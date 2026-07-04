@@ -87,6 +87,40 @@ export async function getPage(id: string): Promise<Page | null> {
  */
 const byPositionKey = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
+/** Fetches the direct, non-archived children of a page, sorted by position. */
+export async function getChildren(parentPageId: string): Promise<Page[]> {
+  const supabase = createServiceSupabase();
+  const { data, error } = await supabase
+    .from("pages")
+    .select("*")
+    .eq("parent_page_id", parentPageId)
+    .eq("is_archived", false);
+  if (error) throw new Error(`getChildren failed: ${error.message}`);
+  return ((data ?? []) as Page[]).sort((a, b) =>
+    byPositionKey(a.position, b.position)
+  );
+}
+
+/**
+ * Walks `parent_page_id` up to the root and returns the ancestor chain,
+ * root-first (excludes `pageId` itself). Empty array for a top-level page.
+ * A cycle guard prevents an infinite loop if data is ever malformed.
+ */
+export async function getAncestors(pageId: string): Promise<Page[]> {
+  const chain: Page[] = [];
+  const seen = new Set<string>([pageId]);
+
+  let parentId = (await getPage(pageId))?.parent_page_id ?? null;
+  while (parentId && !seen.has(parentId)) {
+    const parent = await getPage(parentId);
+    if (!parent) break;
+    seen.add(parent.id);
+    chain.unshift(parent);
+    parentId = parent.parent_page_id;
+  }
+  return chain;
+}
+
 /** Fetches the last (highest) position among a page's siblings. */
 async function getLastSiblingPosition(
   spaceId: string,

@@ -26,7 +26,18 @@ export interface PageMetaBarProps {
   page: Page;
   spaceSlug: string;
   spaces: { id: string; slug: string; name: string; icon: string | null }[];
+  /** Ancestor chain, root-first, excluding `page` itself. */
+  ancestors: Page[];
 }
+
+interface Crumb {
+  key: string;
+  title: string;
+  /** null = current page (not a link). */
+  href: string | null;
+}
+
+const MAX_VISIBLE_CRUMBS = 4;
 
 const ICON_BTN_CLASS =
   "flex h-6 w-6 items-center justify-center rounded text-neutral-400 hover:bg-neutral-200/70 hover:text-neutral-700 dark:text-neutral-500 dark:hover:bg-neutral-800 dark:hover:text-neutral-200";
@@ -40,12 +51,14 @@ export default function PageMetaBar({
   page,
   spaceSlug,
   spaces,
+  ancestors,
 }: PageMetaBarProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [favorite, setFavorite] = useState(page.is_favorite);
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [crumbMenuOpen, setCrumbMenuOpen] = useState(false);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Adopt server state after refreshes / navigation.
@@ -66,6 +79,21 @@ export default function PageMetaBar({
 
   const currentSpace = spaces.find((s) => s.slug === spaceSlug);
   const otherSpaces = spaces.filter((s) => s.slug !== spaceSlug);
+
+  // Full ancestor breadcrumb: Space › ancestor pages › current page.
+  const crumbs: Crumb[] = [
+    { key: "space", title: currentSpace?.name ?? spaceSlug, href: `/${spaceSlug}` },
+    ...ancestors.map((a) => ({
+      key: a.id,
+      title: a.title || "Untitled",
+      href: `/${spaceSlug}/${a.id}`,
+    })),
+    { key: page.id, title: page.title || "Untitled", href: null },
+  ];
+  const showEllipsis = crumbs.length > MAX_VISIBLE_CRUMBS;
+  const headCrumb = crumbs[0];
+  const tailCrumbs = showEllipsis ? crumbs.slice(-3) : crumbs.slice(1);
+  const hiddenCrumbs = showEllipsis ? crumbs.slice(1, -3) : [];
 
   const edited = new Date(page.updated_at);
   const editedLabel = edited.toLocaleDateString("en-US", {
@@ -126,23 +154,68 @@ export default function PageMetaBar({
 
   return (
     <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-neutral-200/80 bg-white/90 px-6 py-1.5 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
-      {/* Breadcrumb-lite */}
+      {/* Breadcrumb: space › ancestor pages › current page */}
       <div className="flex min-w-0 items-center gap-1.5 text-sm">
         <Link
-          href={`/${spaceSlug}`}
+          href={headCrumb.href!}
           className="shrink-0 truncate text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200"
         >
-          {currentSpace?.name ?? spaceSlug}
+          {headCrumb.title}
         </Link>
-        <span
-          className="shrink-0 text-neutral-300 dark:text-neutral-600"
-          aria-hidden
-        >
-          ›
-        </span>
-        <span className="min-w-0 truncate text-neutral-700 dark:text-neutral-300">
-          {page.title || "Untitled"}
-        </span>
+        {showEllipsis && (
+          <>
+            <BreadcrumbSep />
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                title="Show hidden pages"
+                aria-label="Show hidden ancestor pages"
+                aria-expanded={crumbMenuOpen}
+                onClick={() => setCrumbMenuOpen((open) => !open)}
+                className="rounded px-1 text-neutral-400 hover:bg-neutral-200/60 hover:text-neutral-700 dark:text-neutral-500 dark:hover:bg-neutral-800/70 dark:hover:text-neutral-200"
+              >
+                …
+              </button>
+              {crumbMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-20"
+                    onClick={() => setCrumbMenuOpen(false)}
+                  />
+                  <div className="absolute left-0 top-full z-30 mt-1 max-h-72 w-56 overflow-y-auto rounded-md border border-neutral-200 bg-white py-1 text-sm shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+                    {hiddenCrumbs.map((crumb) => (
+                      <Link
+                        key={crumb.key}
+                        href={crumb.href!}
+                        onClick={() => setCrumbMenuOpen(false)}
+                        className="block truncate px-3 py-1 text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                      >
+                        {crumb.title}
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        )}
+        {tailCrumbs.map((crumb) => (
+          <span key={crumb.key} className="flex min-w-0 shrink items-center gap-1.5">
+            <BreadcrumbSep />
+            {crumb.href ? (
+              <Link
+                href={crumb.href}
+                className="shrink truncate text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200"
+              >
+                {crumb.title}
+              </Link>
+            ) : (
+              <span className="min-w-0 truncate text-neutral-700 dark:text-neutral-300">
+                {crumb.title}
+              </span>
+            )}
+          </span>
+        ))}
       </div>
 
       {/* Actions */}
@@ -222,6 +295,14 @@ export default function PageMetaBar({
         )}
       </div>
     </div>
+  );
+}
+
+function BreadcrumbSep() {
+  return (
+    <span className="shrink-0 text-neutral-300 dark:text-neutral-600" aria-hidden>
+      ›
+    </span>
   );
 }
 

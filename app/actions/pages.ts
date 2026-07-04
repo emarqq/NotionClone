@@ -6,6 +6,7 @@ import {
   archivePage,
   createPage,
   duplicatePage,
+  getChildren,
   movePage,
   movePageToSpace,
   renamePage,
@@ -100,6 +101,15 @@ export async function movePageToSpaceAction(
     }
   });
   return page;
+}
+
+/**
+ * Fetches a page's direct, non-archived children — used to lazily expand one
+ * level at a time in the right-rail contents navigator (avoids shipping a
+ * whole subtree up front).
+ */
+export async function getChildrenAction(pageId: string): Promise<Page[]> {
+  return getChildren(pageId);
 }
 
 /** Records that a page was just viewed (drives Recents). Never throws. */
