@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4338CA"/>
+      <stop offset="100%" stop-color="#312E81"/>
+    </linearGradient>
+    <linearGradient id="kgrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E0E7FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#bg)"/>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="none"
+        stroke="#ffffff" stroke-opacity="0.08" stroke-width="4"/>
+
+  <g transform="translate(512,512)">
+    <text x="0" y="0"
+          font-family="-apple-system, Helvetica Neue, Arial, sans-serif"
+          font-weight="700"
+          font-size="560"
+          fill="url(#kgrad)"
+          text-anchor="middle"
+          dominant-baseline="central">K</text>
+  </g>
+
+  <circle cx="512" cy="512" r="0" fill="none"/>
+</svg>

@@ -1,0 +1,4 @@
+#!/bin/bash
+# Tiny shim: the real logic lives in the repo so it's easy to edit and
+# version-control. This just execs it.
+exec /Users/erikmarquardt/NotionClone/desktop/launch.sh
