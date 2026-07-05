@@ -7,6 +7,7 @@ import { CalendarPlus, Plus } from "lucide-react";
 import clsx from "clsx";
 import type { PageTreeNode, Space } from "@/lib/db/types";
 import { movePageAction } from "@/app/actions/pages";
+import type { MenuSpace } from "@/components/page-actions/PageActionsMenu";
 import { canDrop, dragState } from "./dnd";
 import NewMeetingNoteButton from "./NewMeetingNoteButton";
 import NewPageButton from "./NewPageButton";
@@ -32,9 +33,11 @@ function findAncestorIds(
  */
 export default function SpaceSection({
   space,
+  spaces,
   tree,
 }: {
   space: Space;
+  spaces: MenuSpace[];
   tree: PageTreeNode[];
 }) {
   const params = useParams<{ spaceSlug?: string; pageId?: string }>();
@@ -141,6 +144,7 @@ export default function SpaceSection({
         parentId={null}
         spaceId={space.id}
         spaceSlug={space.slug}
+        spaces={spaces}
         activePageId={activePageId}
         expandedIds={expandedIds}
         onToggle={toggle}

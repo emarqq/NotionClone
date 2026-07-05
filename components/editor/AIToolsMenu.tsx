@@ -101,7 +101,7 @@ export default function AIToolsMenu({
         !state.selection.empty &&
         !useAIProposalStore.getState().request
       }
-      tippyOptions={{ duration: 100, placement: "top", onHidden: reset }}
+      tippyOptions={{ duration: 100, placement: "top", maxWidth: "none", onHidden: reset }}
     >
       <div
         className="flex items-center gap-0.5 rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
@@ -117,10 +117,10 @@ export default function AIToolsMenu({
                 title={label}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => triggerTool(tool)}
-                className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
               >
                 <Icon size={14} className="shrink-0" />
-                <span>{label}</span>
+                <span className="whitespace-nowrap">{label}</span>
               </button>
             ))}
             <button
@@ -128,10 +128,10 @@ export default function AIToolsMenu({
               title="Rewrite with a custom instruction"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => setRewriteOpen(true)}
-              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+              className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
             >
               <Wand2 size={14} className="shrink-0" />
-              <span>Rewrite…</span>
+              <span className="whitespace-nowrap">Rewrite…</span>
             </button>
           </>
         ) : (

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import clsx from "clsx";
 import type { PageTreeNode } from "@/lib/db/types";
 import { movePageAction } from "@/app/actions/pages";
+import type { MenuSpace } from "@/components/page-actions/PageActionsMenu";
 import { canDrop, dragState } from "./dnd";
 import PageRow from "./PageRow";
 
@@ -14,6 +15,7 @@ export interface PageTreeProps {
   parentId: string | null;
   spaceId: string;
   spaceSlug: string;
+  spaces: MenuSpace[];
   activePageId: string | null;
   expandedIds: Set<string>;
   onToggle: (id: string) => void;
@@ -32,6 +34,7 @@ export default function PageTree(props: PageTreeProps) {
     parentId,
     spaceId,
     spaceSlug,
+    spaces,
     activePageId,
     expandedIds,
     onToggle,
@@ -54,8 +57,8 @@ export default function PageTree(props: PageTreeProps) {
             depth={depth}
             spaceId={spaceId}
             spaceSlug={spaceSlug}
+            spaces={spaces}
             isActive={node.id === activePageId}
-            activePageId={activePageId}
             expanded={expandedIds.has(node.id)}
             onToggle={onToggle}
             onExpand={onExpand}
@@ -71,6 +74,7 @@ export default function PageTree(props: PageTreeProps) {
                 parentId={node.id}
                 spaceId={spaceId}
                 spaceSlug={spaceSlug}
+                spaces={spaces}
                 activePageId={activePageId}
                 expandedIds={expandedIds}
                 onToggle={onToggle}

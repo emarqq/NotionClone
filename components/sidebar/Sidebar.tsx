@@ -7,6 +7,7 @@ import {
   getSpaces,
 } from "@/lib/db/pages";
 import CollapsibleSection from "./CollapsibleSection";
+import FlatPageRow from "./FlatPageRow";
 import SidebarLink from "./SidebarLink";
 import SpaceSection from "./SpaceSection";
 
@@ -14,9 +15,11 @@ import SpaceSection from "./SpaceSection";
 function PageLinkList({
   pages,
   slugBySpaceId,
+  spaces,
 }: {
   pages: Page[];
   slugBySpaceId: Map<string, string>;
+  spaces: Space[];
 }) {
   return (
     <div>
@@ -24,13 +27,11 @@ function PageLinkList({
         const slug = slugBySpaceId.get(page.space_id);
         if (!slug) return null;
         return (
-          <SidebarLink
+          <FlatPageRow
             key={page.id}
-            href={`/${slug}/${page.id}`}
-            label={page.title}
-            icon={
-              <span className="text-sm leading-none">{page.icon ?? "📄"}</span>
-            }
+            page={page}
+            spaceSlug={slug}
+            spaces={spaces}
           />
         );
       })}
@@ -54,7 +55,7 @@ export default async function Sidebar() {
     <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col overflow-y-auto border-r border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950">
       <div className="px-4 pb-2 pt-4">
         <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
-          Knowledge Hub
+          Notion Clone
         </p>
       </div>
       <nav className="flex-1 space-y-5 px-2 pb-8 pt-2">
@@ -67,7 +68,11 @@ export default async function Sidebar() {
             label="Favorites"
             icon={<Star size={13} />}
           >
-            <PageLinkList pages={favorites} slugBySpaceId={slugBySpaceId} />
+            <PageLinkList
+              pages={favorites}
+              slugBySpaceId={slugBySpaceId}
+              spaces={spaces}
+            />
           </CollapsibleSection>
         )}
         {recents.length > 0 && (
@@ -76,11 +81,20 @@ export default async function Sidebar() {
             label="Recents"
             icon={<Clock size={13} />}
           >
-            <PageLinkList pages={recents} slugBySpaceId={slugBySpaceId} />
+            <PageLinkList
+              pages={recents}
+              slugBySpaceId={slugBySpaceId}
+              spaces={spaces}
+            />
           </CollapsibleSection>
         )}
         {spaces.map((space, index) => (
-          <SpaceSection key={space.id} space={space} tree={trees[index]} />
+          <SpaceSection
+            key={space.id}
+            space={space}
+            spaces={spaces}
+            tree={trees[index]}
+          />
         ))}
       </nav>
     </aside>

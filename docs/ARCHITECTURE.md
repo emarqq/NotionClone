@@ -1,4 +1,4 @@
-# Personal Knowledge Hub — Phase 0 Architecture Doc
+# Personal Notion Clone — Phase 0 Architecture Doc
 
 ## Context
 
@@ -158,7 +158,7 @@ docs/ARCHITECTURE.md   # this document, committed to the repo
 
 **Page metadata & outline:** `components/page-meta` bar (favorites, last-viewed timestamp, metadata). `components/editor/OutlinePanel.tsx` — DOM-driven MutationObserver + IntersectionObserver for heading-level TOC; closes on nav.
 
-**Desktop:** real Electron app (macOS only), own npm package at `desktop/electron/` (electron + electron-builder devDeps, not part of the root Next.js app); main process `desktop/electron/src/main.js` ports the `launch.sh`/`stop.sh` startup sequence (colima → Supabase → `next start -p 3777`, idempotent reuse, detached server so quitting the app doesn't kill it). Installed as "Knowledge Hub.app" to `~/Applications` (ad-hoc signed); old Chrome-app-mode shim kept as fallback at "Knowledge Hub (Chrome).app". Logs at `~/Library/Logs/KnowledgeHub.log`. See `desktop/README.md`.
+**Desktop:** real Electron app (macOS only), own npm package at `desktop/electron/` (electron + electron-builder devDeps, not part of the root Next.js app); main process `desktop/electron/src/main.js` ports the `launch.sh`/`stop.sh` startup sequence (colima → Supabase → `next start -p 3777`, idempotent reuse, detached server so quitting the app doesn't kill it). Installed as "Notion Clone.app" to `~/Applications` (ad-hoc signed); old Chrome-app-mode shim kept as fallback at "Notion Clone (Chrome).app". Logs at `~/Library/Logs/NotionClone.log`. See `desktop/README.md`.
 
 ## Addendum — Phase 3 AI assistant (built 2026-07-03)
 
@@ -171,3 +171,9 @@ Phases 2+3 landed together, exactly per §2–§5 above. Key facts for future wo
 - **Routes**: `POST /api/ai/chat` (SSE: `meta` w/ enriched sources+hrefs → `delta`* → `done`; persists to `ai_conversations`/`ai_messages`, last-8-message history window, partial responses persisted with `_(response interrupted)_`), `POST /api/ai/edit` (5 tools; **propose-only, provably never writes** — verified by block-hash snapshots before/after).
 - **UI**: `components/ai-panel/` (⌘J toggle, zustand `kh-ai-panel`, sources list always rendered under every assistant message independent of `[n]` markers), `components/editor/AIToolsMenu.tsx` (BubbleMenu; Tiptap 2.27's built-in — do NOT add `@tiptap/extension-bubble-menu`, that's v3) + `AIProposalCard.tsx` (diffWords red/green, Accept dispatches one editor transaction → normal debounced save; Reject/Esc discards) + SlashMenu "Continue writing".
 - **Known limitation (§6.3 confirmed in practice)**: llama3.1:8b can hallucinate on sparse sources despite the grounding prompt (fabricated a "chapter 3" from a 2-line note in verification). The always-visible sources list is the mitigation; a stronger chat model or the fine-tune improves this.
+
+## Addendum — Desktop build caveat & cleanup (2026-07-04)
+
+- **Stale-build gotcha:** the desktop app (`~/Applications/Notion Clone.app`) loads the `:3777` **production** server (`next start`), a different surface from the `:3000` dev server. Source edits appear live on `:3000` but not in the desktop app until you `npm run build` and restart `:3777` — the Electron startup reuses an existing `.next` build (only rebuilds when `.next/BUILD_ID` is missing). Don't `next build` while `:3000` dev is running (both write `.next`). Rebuild recipe is in the root `README.md` and `CLAUDE.md`.
+- **Duplicate-app cleanup:** removed redundant bundles — `desktop/electron/dist/` (regenerable via `npm run dist`, gitignored), the old `desktop/Notion Clone.app` stub, and the Chrome-app-mode shim `~/Applications/Notion Clone (Chrome).app`. The source repo + `~/Applications/Notion Clone.app` are the only remaining copies.
+- **Turbopack build:** `npm run build` (`next build --turbopack`) + `next start -p 3777` verified working end-to-end (was previously flagged broken; see `desktop/README.md`).

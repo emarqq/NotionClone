@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Knowledge Hub",
+  title: "Notion Clone",
   description: "Personal knowledge hub for School and Work",
 };
 

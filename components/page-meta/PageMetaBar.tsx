@@ -3,24 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import {
-  Archive,
-  Check,
-  Copy,
-  CornerUpRight,
-  Link as LinkIcon,
-  MoreHorizontal,
-  Star,
-} from "lucide-react";
+import { Check, Link as LinkIcon, MoreHorizontal, Star } from "lucide-react";
 import clsx from "clsx";
 import type { Page } from "@/lib/db/types";
 import {
-  archivePageAction,
-  duplicatePageAction,
-  movePageToSpaceAction,
   toggleFavoriteAction,
   touchLastViewedAction,
 } from "@/app/actions/pages";
+import PageActionsMenu from "@/components/page-actions/PageActionsMenu";
 
 export interface PageMetaBarProps {
   page: Page;
@@ -78,7 +68,6 @@ export default function PageMetaBar({
   }, []);
 
   const currentSpace = spaces.find((s) => s.slug === spaceSlug);
-  const otherSpaces = spaces.filter((s) => s.slug !== spaceSlug);
 
   // Full ancestor breadcrumb: Space › ancestor pages › current page.
   const crumbs: Crumb[] = [
@@ -125,31 +114,6 @@ export default function PageMetaBar({
     } catch {
       // Clipboard unavailable (permissions / insecure context) — ignore.
     }
-  };
-
-  const handleDuplicate = () => {
-    setMenuOpen(false);
-    startTransition(async () => {
-      const copy = await duplicatePageAction(page.id);
-      router.push(`/${spaceSlug}/${copy.id}`);
-    });
-  };
-
-  const handleMoveToSpace = (target: { id: string; slug: string }) => {
-    setMenuOpen(false);
-    startTransition(async () => {
-      await movePageToSpaceAction(page.id, target.id);
-      router.push(`/${target.slug}/${page.id}`);
-    });
-  };
-
-  const handleArchive = () => {
-    setMenuOpen(false);
-    if (!window.confirm(`Archive "${page.title}"?`)) return;
-    startTransition(async () => {
-      await archivePageAction(page.id);
-      router.push(`/${spaceSlug}`);
-    });
   };
 
   return (
@@ -263,36 +227,14 @@ export default function PageMetaBar({
         >
           <MoreHorizontal size={14} />
         </button>
-        {menuOpen && (
-          <>
-            <div
-              className="fixed inset-0 z-20"
-              onClick={() => setMenuOpen(false)}
-            />
-            <div className="absolute right-0 top-full z-30 mt-1 w-52 rounded-md border border-neutral-200 bg-white py-1 text-sm shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
-              <MenuItem onClick={handleDuplicate}>
-                <Copy size={13} className="shrink-0" />
-                Duplicate
-              </MenuItem>
-              {otherSpaces.map((space) => (
-                <MenuItem
-                  key={space.id}
-                  onClick={() => handleMoveToSpace(space)}
-                >
-                  <CornerUpRight size={13} className="shrink-0" />
-                  <span className="truncate">
-                    Move to {space.icon ? `${space.icon} ` : ""}
-                    {space.name}
-                  </span>
-                </MenuItem>
-              ))}
-              <MenuItem danger onClick={handleArchive}>
-                <Archive size={13} className="shrink-0" />
-                Archive
-              </MenuItem>
-            </div>
-          </>
-        )}
+        <PageActionsMenu
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          page={page}
+          spaceSlug={spaceSlug}
+          spaces={spaces}
+          align="right-0"
+        />
       </div>
     </div>
   );
@@ -303,30 +245,5 @@ function BreadcrumbSep() {
     <span className="shrink-0 text-neutral-300 dark:text-neutral-600" aria-hidden>
       ›
     </span>
-  );
-}
-
-function MenuItem({
-  onClick,
-  danger = false,
-  children,
-}: {
-  onClick: () => void;
-  danger?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={clsx(
-        "flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800",
-        danger
-          ? "text-red-600 dark:text-red-400"
-          : "text-neutral-700 dark:text-neutral-200"
-      )}
-    >
-      {children}
-    </button>
   );
 }

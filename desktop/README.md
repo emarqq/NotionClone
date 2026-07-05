@@ -1,12 +1,12 @@
-# Knowledge Hub desktop app
+# Notion Clone desktop app
 
-`~/Applications/Knowledge Hub.app` is a real Electron app (macOS only) that
+`~/Applications/Notion Clone.app` is a real Electron app (macOS only) that
 wraps the local Next.js app at `http://127.0.0.1:3777`. It boots colima,
 then local Supabase, then the production Next.js server (building first if
 `.next/BUILD_ID` is missing) — reusing whatever is already running, exactly
 like the old shell-script shim did. Ports and logs are unchanged: app on
 `http://127.0.0.1:3777`, Supabase on its usual `543xx` ports, logs at
-`~/Library/Logs/KnowledgeHub.log` (append, timestamped).
+`~/Library/Logs/NotionClone.log` (append, timestamped).
 
 ## Architecture
 
@@ -61,7 +61,7 @@ npm install
 npx electron-builder --mac dir
 ```
 
-This produces `desktop/electron/dist/mac-arm64/Knowledge Hub.app`.
+This produces `desktop/electron/dist/mac-arm64/Notion Clone.app`.
 electron-builder's `identity: null` is documented to ad-hoc-sign
 automatically, but in practice (electron-builder 25.1.8) it just **skips
 signing** and leaves Electron's original factory signature in place, which
@@ -70,25 +70,26 @@ no longer matches the modified bundle (custom `Info.plist`, icon,
 build:
 
 ```sh
-codesign --force --deep -s - "dist/mac-arm64/Knowledge Hub.app"
-xattr -cr "dist/mac-arm64/Knowledge Hub.app"
+codesign --force --deep -s - "dist/mac-arm64/Notion Clone.app"
+xattr -cr "dist/mac-arm64/Notion Clone.app"
 ```
 
 Then install it:
 
 ```sh
-rm -rf ~/Applications/"Knowledge Hub.app"
-cp -R "dist/mac-arm64/Knowledge Hub.app" ~/Applications/
+rm -rf ~/Applications/"Notion Clone.app"
+cp -R "dist/mac-arm64/Notion Clone.app" ~/Applications/
 ```
 
-## The old Chrome-app-mode shim (fallback)
+## The old Chrome-app-mode shim (removed 2026-07-04)
 
 The previous shim — a tiny `.app` bundle whose executable just `exec`'d
-`launch.sh`, opening the site in a Chrome `--app=` window — has been kept
-as a fallback at `~/Applications/Knowledge Hub (Chrome).app` (not deleted).
-The repo's own `desktop/Knowledge Hub.app` (source of that shim) is
-untouched. If the Electron app ever regresses, that fallback still works
-exactly as before.
+`launch.sh`, opening the site in a Chrome `--app=` window — was **deleted**
+during a duplicate-app cleanup on 2026-07-04, along with its repo source
+`desktop/Notion Clone.app`. The Electron app (`~/Applications/Knowledge
+Hub.app`) is now the only launcher. If you ever need the Chrome fallback
+again, it was just a `.app` wrapper that ran `launch.sh` and opened
+`http://127.0.0.1:3777` in a Chrome `--app=` window — trivially recreated.
 
 To rebuild the icon (`desktop/icon.icns`, shared by both apps): edit
 `desktop/icon.svg`, re-render via `qlmanage -t -s 1024 -o . icon.svg`,
@@ -115,23 +116,23 @@ The standard macOS Edit menu (Cut/Copy/Paste/Undo/Select All) and Window
 menu are wired up via Electron's built-in `editMenu`/`windowMenu` roles, so
 keyboard shortcuts work normally inside the app.
 
-## Known pre-existing issue: `npm run build` uses `--turbopack`
+## `npm run build` uses `--turbopack` (previously-flagged issue — appears resolved)
 
-`package.json`'s `build` script is `next build --turbopack`. In this
-Next.js version (15.5.20), a Turbopack production build does **not**
-produce a `BUILD_ID` or `routes-manifest.json` that `next start` can read
-— `next start` fails immediately with "Could not find a production build".
-Both `launch.sh` and the Electron app's cold-start path call `npm run
-build` when `.next/BUILD_ID` is missing, so **a genuine cold build via
-either launcher will currently produce a server that won't start.** This
-was hit and worked around during verification of this change (rebuilt with
-plain `next build`, no `--turbopack`, to restore a working `.next`). This
-is a pre-existing defect in the build tooling, not something introduced by
-the Electron rewrite — fixing it (e.g. dropping `--turbopack` from the
-`build` script, or confirming a newer Next.js version resolves it) is a
-separate decision for the app's maintainer.
+`package.json`'s `build` script is `next build --turbopack`. This was
+previously flagged as broken: on an earlier Next 15.5.20 state a Turbopack
+production build reportedly did not produce a `BUILD_ID`/`routes-manifest.json`
+that `next start` could read, so a cold build via either launcher produced a
+server that wouldn't start (worked around by rebuilding with plain
+`next build`).
+
+**Update (2026-07-04):** `npm run build` (i.e. `next build --turbopack`)
+followed by `npx next start -p 3777` was verified working end-to-end — it
+produced a fresh `.next/BUILD_ID` and `next start` served HTTP 200 with the
+current changes. The turbopack/`next start` incompatibility no longer
+reproduces here. If a future cold start ever fails with "Could not find a
+production build", the fallback is still to rebuild without `--turbopack`.
 
 ## Logs & ports (unchanged)
 
 Ports: app on `http://127.0.0.1:3777`, Supabase on its usual `543xx`
-ports. Logs: `~/Library/Logs/KnowledgeHub.log` (append, timestamped).
+ports. Logs: `~/Library/Logs/NotionClone.log` (append, timestamped).

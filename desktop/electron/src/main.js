@@ -1,4 +1,4 @@
-// Knowledge Hub desktop app — Electron main process.
+// Notion Clone desktop app — Electron main process.
 //
 // Ports the startup sequence from ../../launch.sh: boot colima (if needed),
 // boot local Supabase (if needed), boot the Next.js production server on
@@ -12,7 +12,7 @@
 // "Shut Down Backend & Quit" item in the app menu, which shells out to
 // stop.sh --all.
 
-const { app, BrowserWindow, Menu, shell } = require("electron");
+const { app, BrowserWindow, Menu, MenuItem, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -21,14 +21,14 @@ const http = require("node:http");
 // Hardcoded, matching launch.sh/stop.sh: this is a single-machine personal
 // tool, not a redistributable app. It also sidesteps a real footgun — once
 // packaged, __dirname resolves *inside* app.asar (e.g.
-// ".../Knowledge Hub.app/Contents/Resources/app.asar/src"), not the actual
+// ".../Notion Clone.app/Contents/Resources/app.asar/src"), not the actual
 // checkout on disk, so deriving REPO_DIR from __dirname silently points at
 // garbage (this was caught in testing: it produced a bogus Supabase
 // project-id derived from ".../Contents" and nearly raced the real stack).
 const REPO_DIR = "/Users/erikmarquardt/NotionClone";
 const DESKTOP_DIR = path.join(REPO_DIR, "desktop");
 const LOG_DIR = path.join(app.getPath("home"), "Library", "Logs");
-const LOG_FILE = path.join(LOG_DIR, "KnowledgeHub.log");
+const LOG_FILE = path.join(LOG_DIR, "NotionClone.log");
 const PORT = 3777;
 const APP_URL = `http://127.0.0.1:${PORT}`;
 const SUPABASE_BIN = "/opt/homebrew/bin/supabase";
@@ -130,7 +130,7 @@ function splashHtml() {
 <body>
   <div class="card">
     <div class="spinner"></div>
-    <h1>Knowledge Hub</h1>
+    <h1>Notion Clone</h1>
     <div id="status">Starting…</div>
   </div>
 </body>
@@ -321,7 +321,7 @@ function createMainWindow() {
     height: state.height,
     minWidth: 940,
     minHeight: 600,
-    title: "Knowledge Hub",
+    title: "Notion Clone",
     icon: path.join(DESKTOP_DIR, "icon.icns"),
     show: false,
     webPreferences: { contextIsolation: true },
@@ -350,6 +350,52 @@ function createMainWindow() {
       // malformed URL — let Electron's default handling deal with it
     }
     return { action: "allow" };
+  });
+
+  // Electron's default BrowserWindow has no right-click menu at all — not
+  // even Cut/Copy/Paste — unless one is built by hand. This wires up the
+  // standard edit commands plus spelling-correction suggestions (using
+  // Chromium's built-in spellchecker, which is on by default) so misspelled
+  // words show suggested corrections and "Add to Dictionary" like a native
+  // text field.
+  mainWin.webContents.on("context-menu", (_event, params) => {
+    const menu = new Menu();
+
+    if (params.misspelledWord) {
+      for (const suggestion of params.dictionarySuggestions) {
+        menu.append(
+          new MenuItem({
+            label: suggestion,
+            click: () => mainWin.webContents.replaceMisspelling(suggestion),
+          })
+        );
+      }
+      if (params.dictionarySuggestions.length > 0) {
+        menu.append(new MenuItem({ type: "separator" }));
+      }
+      menu.append(
+        new MenuItem({
+          label: "Add to Dictionary",
+          click: () =>
+            mainWin.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord),
+        })
+      );
+      menu.append(new MenuItem({ type: "separator" }));
+    }
+
+    if (params.isEditable) {
+      menu.append(new MenuItem({ label: "Cut", role: "cut", enabled: params.editFlags.canCut }));
+      menu.append(new MenuItem({ label: "Copy", role: "copy", enabled: params.editFlags.canCopy }));
+      menu.append(new MenuItem({ label: "Paste", role: "paste", enabled: params.editFlags.canPaste }));
+      menu.append(new MenuItem({ type: "separator" }));
+      menu.append(new MenuItem({ label: "Select All", role: "selectAll" }));
+    } else if (params.selectionText) {
+      menu.append(new MenuItem({ label: "Copy", role: "copy" }));
+    }
+
+    if (menu.items.length > 0) {
+      menu.popup();
+    }
   });
 
   let saveTimer = null;
@@ -435,8 +481,8 @@ app.whenReady().then(async () => {
     const { dialog } = require("electron");
     await dialog.showMessageBox({
       type: "error",
-      title: "Knowledge Hub failed to start",
-      message: "Knowledge Hub could not start.",
+      title: "Notion Clone failed to start",
+      message: "Notion Clone could not start.",
       detail: `${result.reason}\n\nLog: ${LOG_FILE}`,
       buttons: ["Quit"],
     });

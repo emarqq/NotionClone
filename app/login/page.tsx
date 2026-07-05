@@ -44,7 +44,7 @@ export default function LoginPage() {
         className="w-full max-w-sm space-y-4 rounded-xl border border-neutral-200 bg-white p-8 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
       >
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold">Knowledge Hub</h1>
+          <h1 className="text-xl font-semibold">Notion Clone</h1>
           <p className="text-sm text-neutral-500 dark:text-neutral-400">
             Sign in to your workspace
           </p>

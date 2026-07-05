@@ -1,29 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4338CA"/>
-      <stop offset="100%" stop-color="#312E81"/>
-    </linearGradient>
-    <linearGradient id="kgrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="paper" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="100%" stop-color="#E0E7FF"/>
+      <stop offset="100%" stop-color="#F0EFEC"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D8D6D0"/>
+      <stop offset="100%" stop-color="#B9B6AE"/>
     </linearGradient>
   </defs>
 
-  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#bg)"/>
+  <!-- Card body, riffing on the classic "white card, black N, folded corner"
+       productivity-app look: a knockoff, not a trace, hence the wonky
+       corner fold and the bootleg tag. -->
+  <rect x="48" y="48" width="928" height="928" rx="196" ry="196"
+        fill="url(#paper)" stroke="#111111" stroke-width="20"/>
 
-  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="none"
-        stroke="#ffffff" stroke-opacity="0.08" stroke-width="4"/>
+  <!-- Dog-eared corner fold, slightly crooked like a cheap knockoff -->
+  <path d="M 742 48 L 976 48 L 976 268 Z" fill="url(#fold)" stroke="#111111" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M 742 48 L 976 268" stroke="#8b8880" stroke-width="6"/>
 
-  <g transform="translate(512,512)">
+  <!-- The big bold block letter -->
+  <g transform="translate(500,552)">
     <text x="0" y="0"
-          font-family="-apple-system, Helvetica Neue, Arial, sans-serif"
+          font-family="Georgia, 'Times New Roman', serif"
           font-weight="700"
-          font-size="560"
-          fill="url(#kgrad)"
+          font-size="620"
+          fill="#111111"
           text-anchor="middle"
-          dominant-baseline="central">K</text>
+          dominant-baseline="central"
+          transform="rotate(-2)">N</text>
   </g>
 
-  <circle cx="512" cy="512" r="0" fill="none"/>
+  <!-- Bootleg knockoff sticker banner -->
+  <g transform="translate(300,860) rotate(-9)">
+    <rect x="-230" y="-58" width="460" height="116" rx="14" ry="14"
+          fill="#D5231C" stroke="#FFFFFF" stroke-width="8" stroke-dasharray="14 10"/>
+    <text x="0" y="10"
+          font-family="'Comic Sans MS', 'Marker Felt', cursive, sans-serif"
+          font-weight="700"
+          font-size="78"
+          fill="#FFFFFF"
+          text-anchor="middle"
+          dominant-baseline="central">CLONE!</text>
+  </g>
 </svg>

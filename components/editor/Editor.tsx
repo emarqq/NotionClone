@@ -17,6 +17,7 @@ import clsx from "clsx";
 import type { Block } from "@/lib/db/types";
 import { saveBlocksAction } from "@/app/actions/editor";
 import { blocksFromDoc, docFromBlocks } from "./blockSync";
+import { Autocorrect } from "./extensions/autocorrect";
 import { BlockId } from "./extensions/block-id";
 import { Callout } from "./extensions/callout";
 import { MoveBlock } from "./extensions/move-block";
@@ -112,6 +113,7 @@ export default function Editor({
       ToggleContent,
       BlockId,
       MoveBlock,
+      Autocorrect,
       Placeholder.configure({
         placeholder: ({ node }) =>
           node.type.name === "toggleSummary"
@@ -139,27 +141,40 @@ export default function Editor({
           : "";
 
   return (
-    <div className="relative">
-      <div
-        className={clsx(
-          "pointer-events-none absolute -top-6 right-0 text-xs transition-opacity",
-          saveState === "error"
-            ? "text-red-500"
-            : "text-neutral-400 dark:text-neutral-500",
-          label ? "opacity-100" : "opacity-0"
+    <>
+      <div className="relative">
+        <div
+          className={clsx(
+            "pointer-events-none absolute -top-6 right-0 text-xs transition-opacity",
+            saveState === "error"
+              ? "text-red-500"
+              : "text-neutral-400 dark:text-neutral-500",
+            label ? "opacity-100" : "opacity-0"
+          )}
+          aria-live="polite"
+        >
+          {label}
+        </div>
+        <EditorContent editor={editor} />
+        {editor && (
+          <>
+            <SlashMenu editor={editor} breadcrumb={breadcrumb} />
+            <AIProposalCard editor={editor} />
+          </>
         )}
-        aria-live="polite"
-      >
-        {label}
       </div>
-      <EditorContent editor={editor} />
-      {editor && (
-        <>
-          <SlashMenu editor={editor} breadcrumb={breadcrumb} />
-          <AIToolsMenu editor={editor} breadcrumb={breadcrumb} />
-          <AIProposalCard editor={editor} />
-        </>
-      )}
-    </div>
+      {/*
+        AIToolsMenu (Tiptap's BubbleMenu) always renders a placeholder <div>
+        that tippy.js physically reparents to document.body outside React's
+        tracking. If it shared a DOM parent with SlashMenu/AIProposalCard —
+        elements that mount/unmount conditionally — React sometimes picks
+        that reparented, no-longer-a-child node as an insertBefore anchor
+        when those siblings toggle, throwing "Failed to execute
+        'insertBefore' on 'Node': ... is not a child of this node." Keeping
+        it outside the div above, in its own sibling slot, means React never
+        needs that node as a reconciliation anchor for the toggling elements.
+      */}
+      {editor && <AIToolsMenu editor={editor} breadcrumb={breadcrumb} />}
+    </>
   );
 }

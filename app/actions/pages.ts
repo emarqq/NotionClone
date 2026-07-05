@@ -5,6 +5,7 @@ import { after } from "next/server";
 import {
   archivePage,
   createPage,
+  deletePage,
   duplicatePage,
   getChildren,
   movePage,
@@ -46,6 +47,12 @@ export async function renamePageAction(
 
 export async function archivePageAction(id: string): Promise<void> {
   await archivePage(id);
+  revalidatePath("/", "layout");
+}
+
+/** Permanently deletes a page and its subtree. Irreversible. */
+export async function deletePageAction(id: string): Promise<void> {
+  await deletePage(id);
   revalidatePath("/", "layout");
 }
 

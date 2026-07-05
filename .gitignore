@@ -47,3 +47,6 @@ desktop/electron/out/
 # electron-builder signing artifacts
 *.keychain
 next-env.d.ts
+
+# playwright-mcp test artifacts (screenshots/snapshots from local verification)
+.playwright-mcp/

@@ -6,13 +6,8 @@ import { useState, useTransition } from "react";
 import { ChevronRight, MoreHorizontal, Plus } from "lucide-react";
 import clsx from "clsx";
 import type { PageTreeNode } from "@/lib/db/types";
-import {
-  archivePageAction,
-  createPageAction,
-  movePageAction,
-  renamePageAction,
-  setPageIconAction,
-} from "@/app/actions/pages";
+import { createPageAction, movePageAction, renamePageAction } from "@/app/actions/pages";
+import PageActionsMenu, { type MenuSpace } from "@/components/page-actions/PageActionsMenu";
 import { canDrop, collectDescendantIds, dragState } from "./dnd";
 
 const HOVER_BTN_CLASS =
@@ -23,8 +18,8 @@ export interface PageRowProps {
   depth: number;
   spaceId: string;
   spaceSlug: string;
+  spaces: MenuSpace[];
   isActive: boolean;
-  activePageId: string | null;
   expanded: boolean;
   onToggle: (id: string) => void;
   onExpand: (id: string) => void;
@@ -36,8 +31,8 @@ export default function PageRow({
   depth,
   spaceId,
   spaceSlug,
+  spaces,
   isActive,
-  activePageId,
   expanded,
   onToggle,
   onExpand,
@@ -65,32 +60,6 @@ export default function PageRow({
       const page = await createPageAction(spaceId, spaceSlug, node.id);
       onExpand(node.id);
       router.push(`/${spaceSlug}/${page.id}`);
-    });
-  };
-
-  const handleArchive = () => {
-    setMenuOpen(false);
-    if (!window.confirm(`Archive "${node.title}"?`)) return;
-    const containsActive =
-      activePageId !== null &&
-      (activePageId === node.id ||
-        collectDescendantIds(node).has(activePageId));
-    startTransition(async () => {
-      await archivePageAction(node.id);
-      if (containsActive) router.push(`/${spaceSlug}`);
-    });
-  };
-
-  const handleChangeIcon = () => {
-    setMenuOpen(false);
-    const value = window.prompt(
-      "Page icon (an emoji; leave empty to clear):",
-      node.icon ?? ""
-    );
-    if (value === null) return;
-    const icon = value.trim() || null;
-    startTransition(async () => {
-      await setPageIconAction(node.id, icon);
     });
   };
 
@@ -211,53 +180,17 @@ export default function PageRow({
           </button>
         </div>
       )}
-      {menuOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-20"
-            onClick={() => setMenuOpen(false)}
-          />
-          <div className="absolute right-1 top-full z-30 mt-0.5 w-40 rounded-md border border-neutral-200 bg-white py-1 text-sm shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
-            <MenuItem
-              onClick={() => {
-                setMenuOpen(false);
-                setRenaming(true);
-              }}
-            >
-              Rename
-            </MenuItem>
-            <MenuItem onClick={handleChangeIcon}>Change icon</MenuItem>
-            <MenuItem danger onClick={handleArchive}>
-              Archive
-            </MenuItem>
-          </div>
-        </>
-      )}
+      <PageActionsMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        page={node}
+        spaceSlug={spaceSlug}
+        spaces={spaces}
+        descendantIds={collectDescendantIds(node)}
+        hasChildren={hasChildren}
+        onRenameInline={() => setRenaming(true)}
+        align="right-1"
+      />
     </div>
-  );
-}
-
-function MenuItem({
-  onClick,
-  danger = false,
-  children,
-}: {
-  onClick: () => void;
-  danger?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={clsx(
-        "block w-full px-3 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800",
-        danger
-          ? "text-red-600 dark:text-red-400"
-          : "text-neutral-700 dark:text-neutral-200"
-      )}
-    >
-      {children}
-    </button>
   );
 }

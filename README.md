@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Notion Clone
 
-## Getting Started
+A single-user, self-hosted Notion replacement: a block editor + nested page tree across two spaces (School, Work), with a built-in RAG AI assistant that runs on a local LLM. Built with Next.js 15 (App Router) over a local Supabase stack (Postgres + pgvector), with the chat/embedding model swappable behind a provider interface.
 
-First, run the development server:
+The authoritative design doc is **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** (schema, provider interface, RAG pipeline, phase plan). For AI/agent contributors, see **[`CLAUDE.md`](CLAUDE.md)**.
+
+## Prerequisites
+
+- **colima + Docker** (the local Supabase stack runs in Docker). colima needs `DOCKER_HOST=unix://$HOME/.colima/default/docker.sock`.
+- **Supabase CLI** (installed via tarball, not brew).
+- **Ollama** (for the AI assistant) at `http://localhost:11434` with `llama3.1:8b` and `nomic-embed-text` pulled. The app runs fine without it; only the AI panel/search need it.
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+supabase start        # boot local Postgres/Supabase (colima must be running)
+supabase db reset     # apply migrations + seed.sql (creates School & Work spaces)
+npm install
+npm run dev           # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+> `supabase db reset` wipes the Supabase Auth user — re-create your login afterward.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Commands
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | What it does |
+|---|---|
+| `npm run dev` | Dev server on **:3000** (Turbopack), live-reloads source edits |
+| `npm run build` | Production build → `.next` |
+| `npm run start` | Serve the production build (the desktop app runs this on `-p 3777`) |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
 
-## Learn More
+There is no test framework; verify with `typecheck` + `lint` + driving the app (Phase 1 checklist in `docs/ARCHITECTURE.md`).
 
-To learn more about Next.js, take a look at the following resources:
+## Desktop app & seeing your changes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`~/Applications/Notion Clone.app` is a macOS Electron shell (`desktop/electron/`) that boots colima → Supabase → a **production** Next.js server and loads **`http://127.0.0.1:3777`**. See [`desktop/README.md`](desktop/README.md).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Important:** the `:3777` production server and the `:3000` dev server are different surfaces off the same repo. The desktop app serves the last `next build` and only rebuilds when `.next/BUILD_ID` is missing — so **source edits show up live on `:3000` but NOT in the desktop app until you rebuild and restart `:3777`:**
 
-## Deploy on Vercel
+```bash
+lsof -ti tcp:3777 | xargs kill      # stop the old production server
+npm run build                        # rebuild with your changes
+nohup npx next start -p 3777 &       # restart it
+# then reload the app (Cmd-R) or reopen ~/Applications/Notion Clone.app
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Don't run `npm run build` while the `:3000` dev server is running — both write `.next` and can corrupt each other; stop dev first. The Electron build output (`desktop/electron/dist/`) is regenerable and gitignored.

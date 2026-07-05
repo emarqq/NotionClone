@@ -205,6 +205,17 @@ export async function archivePage(id: string): Promise<void> {
 }
 
 /**
+ * Permanently removes a page. Child pages, blocks, tags, links and RAG chunks
+ * are removed automatically via `on delete cascade` FKs; file rows referencing
+ * the page are detached (`on delete set null`). This is irreversible.
+ */
+export async function deletePage(id: string): Promise<void> {
+  const supabase = createServiceSupabase();
+  const { error } = await supabase.from("pages").delete().eq("id", id);
+  if (error) throw new Error(`deletePage failed: ${error.message}`);
+}
+
+/**
  * Moves a page under `newParentPageId` (null = space root).
  * If `afterPageId` is given, the page is placed directly after that sibling;
  * otherwise it is placed first among the new siblings.

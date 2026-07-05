@@ -1,8 +1,8 @@
 {
-  "name": "knowledge-hub-electron",
+  "name": "notion-clone-electron",
   "version": "1.0.0",
   "private": true,
-  "description": "Electron shell for Knowledge Hub — wraps the local Next.js app running at http://127.0.0.1:3777.",
+  "description": "Electron shell for Notion Clone — wraps the local Next.js app running at http://127.0.0.1:3777.",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
@@ -13,8 +13,8 @@
     "electron-builder": "^25.0.0"
   },
   "build": {
-    "appId": "com.erik.knowledgehub",
-    "productName": "Knowledge Hub",
+    "appId": "com.erik.notionclone",
+    "productName": "Notion Clone",
     "directories": {
       "output": "dist"
     },
