@@ -43,6 +43,14 @@ export default function TitleInput({
     router.refresh();
   };
 
+  // Move focus into the first block of the editor, cursor at the start.
+  const focusEditor = () => {
+    const el = document.querySelector<HTMLElement>(
+      `[data-page-id="${pageId}"]`
+    );
+    el?.focus();
+  };
+
   return (
     <input
       ref={inputRef}
@@ -50,9 +58,10 @@ export default function TitleInput({
       onChange={(e) => setTitle(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === "Enter") {
+        if (e.key === "Enter" || (e.key === "Tab" && !e.shiftKey)) {
           e.preventDefault();
           e.currentTarget.blur();
+          focusEditor();
         } else if (e.key === "Escape") {
           setTitle(lastSavedRef.current);
           e.currentTarget.blur();
