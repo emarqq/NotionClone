@@ -1,7 +1,8 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import {
   Archive,
   Copy,
@@ -23,6 +24,7 @@ import {
   toggleFavoriteAction,
 } from "@/app/actions/pages";
 import IconPicker from "@/components/page-actions/IconPicker";
+import { PageIcon } from "@/lib/icons";
 
 /** The subset of space fields the menu needs (for "Move to space"). */
 export interface MenuSpace {
@@ -85,9 +87,65 @@ export default function PageActionsMenu({
   const [editMode, setEditMode] = useState<"rename" | "icon" | null>(null);
   const [editValue, setEditValue] = useState("");
 
+  // The panel is portaled to <body> and positioned with `fixed` coordinates
+  // computed from the trigger's on-screen rect, so it can flip above the
+  // trigger (and clamp horizontally) instead of being clipped by the
+  // sidebar's scroll container or the bottom of the viewport.
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<React.CSSProperties>({
+    position: "fixed",
+    top: 0,
+    left: 0,
+    visibility: "hidden",
+  });
+
   useEffect(() => {
     if (!open) setEditMode(null);
   }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    const reposition = () => {
+      const anchor = anchorRef.current;
+      const panel = panelRef.current;
+      if (!anchor || !panel) return;
+      const anchorRect = anchor.getBoundingClientRect();
+      const panelRect = panel.getBoundingClientRect();
+      const GAP = 4;
+      const MARGIN = 8;
+      const rightInset = align === "right-1" ? 4 : 0;
+
+      const spaceBelow = window.innerHeight - anchorRect.bottom;
+      const spaceAbove = anchorRect.top;
+      const openUpward =
+        spaceBelow < panelRect.height + GAP + MARGIN && spaceAbove > spaceBelow;
+
+      const top = openUpward
+        ? Math.max(MARGIN, anchorRect.top - GAP - panelRect.height)
+        : Math.min(
+            anchorRect.bottom + GAP,
+            window.innerHeight - panelRect.height - MARGIN
+          );
+
+      let left = anchorRect.right - rightInset - panelRect.width;
+      left = Math.min(
+        Math.max(left, MARGIN),
+        window.innerWidth - panelRect.width - MARGIN
+      );
+
+      setStyle({ position: "fixed", top, left, visibility: "visible" });
+    };
+
+    reposition();
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [open, align, editMode, spaces, spaceSlug]);
 
   if (!open) return null;
 
@@ -224,97 +282,106 @@ export default function PageActionsMenu({
 
   return (
     <>
-      <div className="fixed inset-0 z-20" onClick={onClose} />
-      <div
-        className={clsx(
-          "absolute top-full z-30 mt-1 rounded-md border border-neutral-200 bg-white text-sm shadow-lg dark:border-neutral-700 dark:bg-neutral-900",
-          editMode === "rename"
-            ? clsx("w-56 p-2", align)
-            : clsx("w-56 py-1", align),
-        )}
-      >
-        {editMode === "rename" ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              submitEdit(editValue);
-            }}
+      {/* Zero-size, invisible stand-in for the trigger's row bounds — the
+          portaled panel below measures this to compute its fixed position. */}
+      <div ref={anchorRef} className="pointer-events-none absolute inset-0" aria-hidden />
+      {createPortal(
+        <>
+          <div className="fixed inset-0 z-20" onClick={onClose} />
+          <div
+            ref={panelRef}
+            style={style}
+            className={clsx(
+              "z-30 rounded-md border border-neutral-200 bg-white text-sm shadow-lg dark:border-neutral-700 dark:bg-neutral-900",
+              editMode === "rename" ? "w-56 p-2" : "w-56 py-1",
+            )}
           >
-            <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">
-              Page title
-            </label>
-            <input
-              autoFocus
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setEditMode(null);
-              }}
-              className="mb-2 w-full rounded border border-neutral-200 bg-white px-2 py-1 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:focus:border-neutral-500"
-            />
-            <div className="flex justify-end gap-1.5">
-              <button
-                type="button"
-                onClick={() => setEditMode(null)}
-                className="rounded px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            {editMode === "rename" ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submitEdit(editValue);
+                }}
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="rounded bg-neutral-900 px-2 py-1 text-xs text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
-              >
-                Save
-              </button>
-            </div>
-          </form>
-        ) : (
-          <>
-            <MenuItem onClick={handleRename}>
-              <Pencil size={13} className="shrink-0" />
-              Rename
-            </MenuItem>
-            <MenuItem onClick={handleChangeIcon}>
-              <Smile size={13} className="shrink-0" />
-              Change icon
-            </MenuItem>
-            <MenuItem onClick={handleCopyLink}>
-              <LinkIcon size={13} className="shrink-0" />
-              Copy link
-            </MenuItem>
-            <MenuItem onClick={handleToggleFavorite}>
-              <Star
-                size={13}
-                className="shrink-0"
-                fill={page.is_favorite ? "currentColor" : "none"}
-              />
-              {page.is_favorite ? "Remove from favorites" : "Add to favorites"}
-            </MenuItem>
-            <MenuItem onClick={handleDuplicate}>
-              <Copy size={13} className="shrink-0" />
-              Duplicate
-            </MenuItem>
-            {otherSpaces.map((space) => (
-              <MenuItem key={space.id} onClick={() => handleMoveToSpace(space)}>
-                <CornerUpRight size={13} className="shrink-0" />
-                <span className="truncate">
-                  Move to {space.icon ? `${space.icon} ` : ""}
-                  {space.name}
-                </span>
-              </MenuItem>
-            ))}
-            <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
-            <MenuItem onClick={handleArchive}>
-              <Archive size={13} className="shrink-0" />
-              Archive
-            </MenuItem>
-            <MenuItem danger onClick={handleDelete}>
-              <Trash2 size={13} className="shrink-0" />
-              Delete
-            </MenuItem>
-          </>
-        )}
-      </div>
+                <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                  Page title
+                </label>
+                <input
+                  autoFocus
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setEditMode(null);
+                  }}
+                  className="mb-2 w-full rounded border border-neutral-200 bg-white px-2 py-1 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:focus:border-neutral-500"
+                />
+                <div className="flex justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditMode(null)}
+                    className="rounded px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded bg-neutral-900 px-2 py-1 text-xs text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
+                  >
+                    Save
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <MenuItem onClick={handleRename}>
+                  <Pencil size={13} className="shrink-0" />
+                  Rename
+                </MenuItem>
+                <MenuItem onClick={handleChangeIcon}>
+                  <Smile size={13} className="shrink-0" />
+                  Change icon
+                </MenuItem>
+                <MenuItem onClick={handleCopyLink}>
+                  <LinkIcon size={13} className="shrink-0" />
+                  Copy link
+                </MenuItem>
+                <MenuItem onClick={handleToggleFavorite}>
+                  <Star
+                    size={13}
+                    className="shrink-0"
+                    fill={page.is_favorite ? "currentColor" : "none"}
+                  />
+                  {page.is_favorite ? "Remove from favorites" : "Add to favorites"}
+                </MenuItem>
+                <MenuItem onClick={handleDuplicate}>
+                  <Copy size={13} className="shrink-0" />
+                  Duplicate
+                </MenuItem>
+                {otherSpaces.map((space) => (
+                  <MenuItem key={space.id} onClick={() => handleMoveToSpace(space)}>
+                    <CornerUpRight size={13} className="shrink-0" />
+                    <span className="flex min-w-0 items-center gap-1 truncate">
+                      Move to
+                      {space.icon && <PageIcon icon={space.icon} size={13} />}
+                      <span className="truncate">{space.name}</span>
+                    </span>
+                  </MenuItem>
+                ))}
+                <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
+                <MenuItem onClick={handleArchive}>
+                  <Archive size={13} className="shrink-0" />
+                  Archive
+                </MenuItem>
+                <MenuItem danger onClick={handleDelete}>
+                  <Trash2 size={13} className="shrink-0" />
+                  Delete
+                </MenuItem>
+              </>
+            )}
+          </div>
+        </>,
+        document.body
+      )}
     </>
   );
 }

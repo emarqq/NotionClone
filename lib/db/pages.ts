@@ -26,6 +26,56 @@ export async function getSpaceBySlug(slug: string): Promise<Space | null> {
   return (data as Space) ?? null;
 }
 
+function slugify(name: string): string {
+  const base = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return base || "space";
+}
+
+/** Appends -2, -3, ... to `base` until it doesn't collide with an existing space slug. */
+async function uniqueSpaceSlug(base: string): Promise<string> {
+  const supabase = createServiceSupabase();
+  const { data, error } = await supabase
+    .from("spaces")
+    .select("slug")
+    .like("slug", `${base}%`);
+  if (error) throw new Error(`uniqueSpaceSlug failed: ${error.message}`);
+  const taken = new Set((data ?? []).map((row) => row.slug as string));
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
+
+export async function createSpace(input: {
+  name: string;
+  icon?: string | null;
+}): Promise<Space> {
+  const supabase = createServiceSupabase();
+  const slug = await uniqueSpaceSlug(slugify(input.name));
+  const spaces = await getSpaces();
+  const position =
+    spaces.length === 0
+      ? firstPosition()
+      : positionAfter(spaces[spaces.length - 1].position);
+
+  const { data, error } = await supabase
+    .from("spaces")
+    .insert({
+      name: input.name.trim() || "Untitled",
+      slug,
+      icon: input.icon ?? null,
+      position,
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error(`createSpace failed: ${error.message}`);
+  return data as Space;
+}
+
 /**
  * Fetches all non-archived pages of a space in one query and assembles the
  * nested tree in JS. Children (and roots) are sorted by fractional position.

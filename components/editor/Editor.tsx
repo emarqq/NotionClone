@@ -127,6 +127,30 @@ export default function Editor({
         class: "editor-prose focus:outline-none",
         "data-page-id": pageId,
       },
+      handlePaste: (view, event) => {
+        const files = Array.from(event.clipboardData?.files ?? []).filter((f) =>
+          f.type.startsWith("image/")
+        );
+        if (files.length === 0) return false;
+        event.preventDefault();
+        for (const file of files) {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("pageId", pageId);
+          fetch("/api/files", { method: "POST", body: formData })
+            .then((res) => {
+              if (!res.ok) throw new Error(`Image upload failed (${res.status})`);
+              return res.json() as Promise<{ id: string }>;
+            })
+            .then(({ id }) => {
+              const { schema } = view.state;
+              const node = schema.nodes.image.create({ src: `/api/files/${id}` });
+              view.dispatch(view.state.tr.replaceSelectionWith(node));
+            })
+            .catch((err) => console.error("Image paste failed:", err));
+        }
+        return true;
+      },
     },
     onUpdate: ({ editor: e }) => scheduleSave(e.state.doc),
   });

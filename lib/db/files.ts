@@ -38,6 +38,17 @@ export async function createFileRecord(meta: NewFileRecord): Promise<FileMeta> {
   return data as FileMeta;
 }
 
+export async function getFileById(id: string): Promise<FileMeta | null> {
+  const supabase = createServiceSupabase();
+  const { data, error } = await supabase
+    .from("files")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`getFileById failed: ${error.message}`);
+  return (data as FileMeta) ?? null;
+}
+
 export async function listFilesForPage(pageId: string): Promise<FileMeta[]> {
   const supabase = createServiceSupabase();
   const { data, error } = await supabase

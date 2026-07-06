@@ -5,6 +5,7 @@ import { after } from "next/server";
 import {
   archivePage,
   createPage,
+  createSpace,
   deletePage,
   duplicatePage,
   getChildren,
@@ -15,8 +16,18 @@ import {
   toggleFavorite,
   touchLastViewed,
 } from "@/lib/db/pages";
-import type { Page } from "@/lib/db/types";
+import type { Page, Space } from "@/lib/db/types";
 import { ingestPage } from "@/lib/rag/ingest";
+
+/** Creates a new space (top-level section like School/Work) and returns it. */
+export async function createSpaceAction(
+  name: string,
+  icon?: string | null
+): Promise<Space> {
+  const space = await createSpace({ name, icon });
+  revalidatePath("/", "layout");
+  return space;
+}
 
 /**
  * Creates a page (optionally under a parent) and returns it so the client

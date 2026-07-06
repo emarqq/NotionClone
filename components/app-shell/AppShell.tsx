@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import TabBar from "@/components/tabs/TabBar";
@@ -14,6 +14,7 @@ import {
 import { useNewTab, type SpaceOption } from "@/components/tabs/useNewTab";
 import AiPanel from "@/components/ai-panel/AiPanel";
 import { rehydrateAiPanelStore, useAiPanelStore } from "@/components/ai-panel/store";
+import ResizeHandle from "@/components/app-shell/ResizeHandle";
 
 export interface AppShellProps {
   sidebar: React.ReactNode;
@@ -37,9 +38,14 @@ function isEditableTarget(target: EventTarget | null): boolean {
 export default function AppShell({ sidebar, spaces, children }: AppShellProps) {
   const router = useRouter();
   const sidebarOpen = useTabsStore((s) => s.sidebarOpen);
+  const sidebarWidth = useTabsStore((s) => s.sidebarWidth);
+  const setSidebarWidth = useTabsStore((s) => s.setSidebarWidth);
   const aiPanelOpen = useAiPanelStore((s) => s.open);
   const aiPanelWidth = useAiPanelStore((s) => s.width);
+  const setAiPanelWidth = useAiPanelStore((s) => s.setWidth);
   const { createNewTab } = useNewTab(spaces);
+  const [resizingSidebar, setResizingSidebar] = useState(false);
+  const [resizingAiPanel, setResizingAiPanel] = useState(false);
 
   useEffect(() => {
     rehydrateTabsStore();
@@ -120,11 +126,20 @@ export default function AppShell({ sidebar, spaces, children }: AppShellProps) {
     <div className="flex h-screen overflow-hidden">
       <div
         className={clsx(
-          "shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out",
-          sidebarOpen ? "w-64" : "w-0"
+          "flex shrink-0 overflow-hidden",
+          !resizingSidebar && "transition-[width] duration-200 ease-in-out"
         )}
+        style={{ width: sidebarOpen ? sidebarWidth : 0 }}
       >
-        {sidebar}
+        <div className="min-w-0 flex-1 overflow-hidden">{sidebar}</div>
+        {sidebarOpen && (
+          <ResizeHandle
+            side="left"
+            getWidth={() => useTabsStore.getState().sidebarWidth}
+            onResize={setSidebarWidth}
+            onDragChange={setResizingSidebar}
+          />
+        )}
       </div>
       <div className="flex h-full min-w-0 flex-1 flex-col">
         <TabBar spaces={spaces} />
@@ -133,10 +148,23 @@ export default function AppShell({ sidebar, spaces, children }: AppShellProps) {
         </main>
       </div>
       <div
-        className="shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out"
+        className={clsx(
+          "flex shrink-0 overflow-hidden",
+          !resizingAiPanel && "transition-[width] duration-200 ease-in-out"
+        )}
         style={{ width: aiPanelOpen ? aiPanelWidth : 0 }}
       >
-        <AiPanel spaces={spaces} />
+        {aiPanelOpen && (
+          <ResizeHandle
+            side="right"
+            getWidth={() => useAiPanelStore.getState().width}
+            onResize={setAiPanelWidth}
+            onDragChange={setResizingAiPanel}
+          />
+        )}
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <AiPanel spaces={spaces} />
+        </div>
       </div>
     </div>
   );

@@ -6,6 +6,10 @@ import { createJSONStorage, persist } from "zustand/middleware";
 /** Id of the scrollable content container rendered by AppShell. */
 export const SCROLL_CONTAINER_ID = "page-scroll";
 
+export const SIDEBAR_DEFAULT_WIDTH = 256;
+export const SIDEBAR_MIN_WIDTH = 200;
+export const SIDEBAR_MAX_WIDTH = 480;
+
 export interface Tab {
   /** Stable uuid for the tab itself (not the page). */
   id: string;
@@ -27,6 +31,7 @@ interface TabsState {
   activeTabId: string | null;
   history: { back: string[]; forward: string[] };
   sidebarOpen: boolean;
+  sidebarWidth: number;
   /** True once the persisted state has been rehydrated on the client. */
   hasHydrated: boolean;
 
@@ -55,6 +60,7 @@ interface TabsState {
   /** Returns the href to navigate forward to, or null. */
   goForward: () => string | null;
   toggleSidebar: () => void;
+  setSidebarWidth: (width: number) => void;
   setHasHydrated: (value: boolean) => void;
 }
 
@@ -85,6 +91,7 @@ export const useTabsStore = create<TabsState>()(
       activeTabId: null,
       history: { back: [], forward: [] },
       sidebarOpen: true,
+      sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
       hasHydrated: false,
 
       openPage: (input) => {
@@ -224,6 +231,14 @@ export const useTabsStore = create<TabsState>()(
 
       toggleSidebar: () => set({ sidebarOpen: !get().sidebarOpen }),
 
+      setSidebarWidth: (width) =>
+        set({
+          sidebarWidth: Math.min(
+            SIDEBAR_MAX_WIDTH,
+            Math.max(SIDEBAR_MIN_WIDTH, width)
+          ),
+        }),
+
       setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
     {
@@ -237,6 +252,7 @@ export const useTabsStore = create<TabsState>()(
         activeTabId: state.activeTabId,
         history: state.history,
         sidebarOpen: state.sidebarOpen,
+        sidebarWidth: state.sidebarWidth,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

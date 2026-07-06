@@ -71,7 +71,10 @@ export function blocksFromDoc(doc: PMNode): BlockInput[] {
           ? node.attrs.blockId
           : crypto.randomUUID(),
       type: blockTypeForNode(node.type.name),
-      content: node.toJSON() as Json,
+      // Round-trip through JSON: ProseMirror node attrs are null-prototype
+      // objects, which the server action boundary silently drops instead of
+      // serializing, corrupting node attributes (e.g. image src) on save.
+      content: JSON.parse(JSON.stringify(node.toJSON())) as Json,
       position,
     });
   });
