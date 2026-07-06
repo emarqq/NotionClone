@@ -196,27 +196,44 @@ export default function PageActionsMenu({
     });
   };
 
-  return (
-    <>
-      <div className="fixed inset-0 z-20" onClick={onClose} />
+  // The icon picker is wider/taller than a typical trigger row (sidebar rows
+  // especially), so instead of anchoring it to the trigger like the rest of
+  // this menu, float it as a centered overlay above everything — sidebar and
+  // main page alike — rather than fitting it into whatever cramped space is
+  // beside the trigger.
+  if (editMode === "icon") {
+    return (
       <div
-        className={clsx(
-          "absolute top-full z-30 mt-1 rounded-md border border-neutral-200 bg-white text-sm shadow-lg dark:border-neutral-700 dark:bg-neutral-900",
-          editMode === "icon"
-            ? "left-0 w-80 p-2" // wider than most trigger rows (e.g. sidebar) — anchor left so it opens into the roomier space beside/below rather than off the left edge of the viewport
-            : editMode === "rename"
-              ? clsx("w-56 p-2", align)
-              : clsx("w-56 py-1", align),
-        )}
+        className="fixed inset-0 z-40 flex items-center justify-center bg-black/20"
+        onClick={() => setEditMode(null)}
       >
-        {editMode === "icon" ? (
+        <div
+          className="w-80 rounded-md border border-neutral-200 bg-white p-2 text-sm shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
+          onClick={(e) => e.stopPropagation()}
+        >
           <IconPicker
             value={page.icon}
             onSelect={handleSelectIcon}
             onClear={() => handleSelectIcon(null)}
             onClose={() => setEditMode(null)}
           />
-        ) : editMode === "rename" ? (
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-20" onClick={onClose} />
+      <div
+        className={clsx(
+          "absolute top-full z-30 mt-1 rounded-md border border-neutral-200 bg-white text-sm shadow-lg dark:border-neutral-700 dark:bg-neutral-900",
+          editMode === "rename"
+            ? clsx("w-56 p-2", align)
+            : clsx("w-56 py-1", align),
+        )}
+      >
+        {editMode === "rename" ? (
           <form
             onSubmit={(e) => {
               e.preventDefault();
