@@ -9,6 +9,7 @@ import type { Page } from "@/lib/db/types";
 import { createPageAction, getChildrenAction } from "@/app/actions/pages";
 import { useAiPanelStore } from "@/components/ai-panel/store";
 import OutlinePanel from "@/components/editor/OutlinePanel";
+import { DefaultPageIcon, PageIcon } from "@/lib/icons";
 
 const OPEN_STORAGE_KEY = "kh-contents-open";
 const PANEL_WIDTH = 240;
@@ -67,7 +68,7 @@ export default function ContentsPanel({
   const handleNewSubPage = () => {
     startTransition(async () => {
       const created = await createPageAction(spaceId, spaceSlug, page.id);
-      router.push(`/${spaceSlug}/${created.id}`);
+      router.push(`/${spaceSlug}/${created.id}?focusTitle=1`);
     });
   };
 
@@ -105,8 +106,8 @@ export default function ContentsPanel({
               className="flex min-w-0 items-center gap-1 px-3 text-xs text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-200"
             >
               <span aria-hidden>‹</span>
-              <span className="min-w-0 truncate">
-                {parent.icon ? `${parent.icon} ` : ""}
+              <span className="flex min-w-0 items-center gap-1 truncate">
+                <PageIcon icon={parent.icon} size={12} className="shrink-0" />
                 {parent.title || "Untitled"}
               </span>
             </Link>
@@ -206,8 +207,8 @@ function SubPageRow({
             className={clsx("transition-transform", expanded && "rotate-90")}
           />
         </button>
-        <span className="w-4 shrink-0 text-center leading-none">
-          {page.icon ?? "📄"}
+        <span className="flex w-4 shrink-0 items-center justify-center leading-none">
+          <PageIcon icon={page.icon} size={13} fallback={<DefaultPageIcon size={13} />} />
         </span>
         <Link
           href={`/${spaceSlug}/${page.id}`}

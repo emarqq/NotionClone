@@ -8,6 +8,7 @@ import clsx from "clsx";
 import type { PageTreeNode } from "@/lib/db/types";
 import { createPageAction, movePageAction, renamePageAction } from "@/app/actions/pages";
 import PageActionsMenu, { type MenuSpace } from "@/components/page-actions/PageActionsMenu";
+import { DefaultPageIcon, PageIcon } from "@/lib/icons";
 import { canDrop, collectDescendantIds, dragState } from "./dnd";
 
 const HOVER_BTN_CLASS =
@@ -59,7 +60,7 @@ export default function PageRow({
     startTransition(async () => {
       const page = await createPageAction(spaceId, spaceSlug, node.id);
       onExpand(node.id);
-      router.push(`/${spaceSlug}/${page.id}`);
+      router.push(`/${spaceSlug}/${page.id}?focusTitle=1`);
     });
   };
 
@@ -130,8 +131,8 @@ export default function PageRow({
           className={clsx("transition-transform", expanded && "rotate-90")}
         />
       </button>
-      <span className="w-4 shrink-0 text-center text-sm leading-none">
-        {node.icon ?? "📄"}
+      <span className="flex w-4 shrink-0 items-center justify-center leading-none">
+        <PageIcon icon={node.icon} size={14} fallback={<DefaultPageIcon size={14} />} />
       </span>
       {renaming ? (
         <input

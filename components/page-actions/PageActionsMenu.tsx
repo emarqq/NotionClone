@@ -22,6 +22,7 @@ import {
   setPageIconAction,
   toggleFavoriteAction,
 } from "@/app/actions/pages";
+import IconPicker from "@/components/page-actions/IconPicker";
 
 /** The subset of space fields the menu needs (for "Move to space"). */
 export interface MenuSpace {
@@ -79,8 +80,8 @@ export default function PageActionsMenu({
   const [, startTransition] = useTransition();
   // `window.prompt` never shows anything in the Electron desktop shell (it's
   // one of the few dialog APIs Chromium doesn't implement there), so rename
-  // and icon editing use this in-menu text field instead wherever there's no
-  // dedicated inline-rename UI.
+  // uses this in-menu text field instead wherever there's no dedicated
+  // inline-rename UI.
   const [editMode, setEditMode] = useState<"rename" | "icon" | null>(null);
   const [editValue, setEditValue] = useState("");
 
@@ -113,7 +114,6 @@ export default function PageActionsMenu({
   };
 
   const handleChangeIcon = () => {
-    setEditValue(page.icon ?? "");
     setEditMode("icon");
   };
 
@@ -125,12 +125,15 @@ export default function PageActionsMenu({
           await renamePageAction(page.id, title);
         });
       }
-    } else if (editMode === "icon") {
-      const icon = value.trim() || null;
-      startTransition(async () => {
-        await setPageIconAction(page.id, icon);
-      });
     }
+    setEditMode(null);
+    onClose();
+  };
+
+  const handleSelectIcon = (icon: string | null) => {
+    startTransition(async () => {
+      await setPageIconAction(page.id, icon);
+    });
     setEditMode(null);
     onClose();
   };
@@ -198,12 +201,22 @@ export default function PageActionsMenu({
       <div className="fixed inset-0 z-20" onClick={onClose} />
       <div
         className={clsx(
-          "absolute top-full z-30 mt-1 w-56 rounded-md border border-neutral-200 bg-white text-sm shadow-lg dark:border-neutral-700 dark:bg-neutral-900",
-          editMode ? "p-2" : "py-1",
-          align,
+          "absolute top-full z-30 mt-1 rounded-md border border-neutral-200 bg-white text-sm shadow-lg dark:border-neutral-700 dark:bg-neutral-900",
+          editMode === "icon"
+            ? "left-0 w-80 p-2" // wider than most trigger rows (e.g. sidebar) — anchor left so it opens into the roomier space beside/below rather than off the left edge of the viewport
+            : editMode === "rename"
+              ? clsx("w-56 p-2", align)
+              : clsx("w-56 py-1", align),
         )}
       >
-        {editMode ? (
+        {editMode === "icon" ? (
+          <IconPicker
+            value={page.icon}
+            onSelect={handleSelectIcon}
+            onClear={() => handleSelectIcon(null)}
+            onClose={() => setEditMode(null)}
+          />
+        ) : editMode === "rename" ? (
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -211,7 +224,7 @@ export default function PageActionsMenu({
             }}
           >
             <label className="mb-1 block text-xs font-medium text-neutral-500 dark:text-neutral-400">
-              {editMode === "rename" ? "Page title" : "Page icon (emoji)"}
+              Page title
             </label>
             <input
               autoFocus
@@ -220,9 +233,6 @@ export default function PageActionsMenu({
               onKeyDown={(e) => {
                 if (e.key === "Escape") setEditMode(null);
               }}
-              placeholder={
-                editMode === "icon" ? "e.g. 📄 — empty to clear" : undefined
-              }
               className="mb-2 w-full rounded border border-neutral-200 bg-white px-2 py-1 text-sm outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:focus:border-neutral-500"
             />
             <div className="flex justify-end gap-1.5">

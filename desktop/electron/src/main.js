@@ -25,7 +25,7 @@ const http = require("node:http");
 // checkout on disk, so deriving REPO_DIR from __dirname silently points at
 // garbage (this was caught in testing: it produced a bogus Supabase
 // project-id derived from ".../Contents" and nearly raced the real stack).
-const REPO_DIR = "/Users/erikmarquardt/NotionClone";
+const REPO_DIR = "/Users/erikmarquardt/OS/projects/NotionClone";
 const DESKTOP_DIR = path.join(REPO_DIR, "desktop");
 const LOG_DIR = path.join(app.getPath("home"), "Library", "Logs");
 const LOG_FILE = path.join(LOG_DIR, "NotionClone.log");
@@ -67,13 +67,22 @@ function runCommand(cmd, args, opts = {}) {
       env: childEnv(),
       stdio: ["ignore", fd, fd],
     });
+    // A failed spawn emits 'error' and then still emits 'close' — guard so
+    // we don't close the same fd twice (the second close throws EBADF,
+    // uncaught, and crashes the whole Electron main process).
+    let fdClosed = false;
+    const closeFd = () => {
+      if (fdClosed) return;
+      fdClosed = true;
+      fs.closeSync(fd);
+    };
     child.on("error", (err) => {
       log(`${cmd} ${args.join(" ")}: FAILED to spawn (${err.message})`);
-      fs.closeSync(fd);
+      closeFd();
       resolve(1);
     });
     child.on("close", (code) => {
-      fs.closeSync(fd);
+      closeFd();
       resolve(code ?? 1);
     });
   });
@@ -425,13 +434,21 @@ function shutDownBackendAndQuit() {
     env: childEnv(),
     stdio: ["ignore", fd, fd],
   });
-  child.on("close", () => {
+  // Same double-close hazard as runCommand: a failed spawn emits both
+  // 'error' and 'close', and closing the same fd twice throws EBADF.
+  let fdClosed = false;
+  const closeFd = () => {
+    if (fdClosed) return;
+    fdClosed = true;
     fs.closeSync(fd);
+  };
+  child.on("close", () => {
+    closeFd();
     app.quit();
   });
   child.on("error", (err) => {
     log(`stop.sh --all failed to run: ${err.message}`);
-    fs.closeSync(fd);
+    closeFd();
     app.quit();
   });
 }

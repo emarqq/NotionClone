@@ -4,6 +4,7 @@ import { CalendarPlus, Plus } from "lucide-react";
 import { getPageTree, getSpaceBySlug } from "@/lib/db/pages";
 import NewMeetingNoteButton from "@/components/sidebar/NewMeetingNoteButton";
 import NewPageButton from "@/components/sidebar/NewPageButton";
+import { DefaultPageIcon, PageIcon } from "@/lib/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function SpacePage({
   return (
     <div className="mx-auto max-w-2xl px-8 py-16">
       <h1 className="flex items-center gap-3 text-3xl font-bold text-neutral-900 dark:text-neutral-100">
-        {space.icon && <span>{space.icon}</span>}
+        <PageIcon icon={space.icon} size={30} />
         <span>{space.name}</span>
       </h1>
 
@@ -57,7 +58,11 @@ export default async function SpacePage({
               href={`/${space.slug}/${page.id}`}
               className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-800 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800/70"
             >
-              <span>{page.icon ?? "📄"}</span>
+              <PageIcon
+                icon={page.icon}
+                size={16}
+                fallback={<DefaultPageIcon />}
+              />
               <span className="truncate">{page.title}</span>
               {page.children.length > 0 && (
                 <span className="ml-auto shrink-0 text-xs text-neutral-400 dark:text-neutral-500">

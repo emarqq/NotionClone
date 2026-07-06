@@ -37,7 +37,7 @@ export default function NewPageButton({
       onClick={() => {
         startTransition(async () => {
           const page = await createPageAction(spaceId, spaceSlug, parentPageId);
-          router.push(`/${spaceSlug}/${page.id}`);
+          router.push(`/${spaceSlug}/${page.id}?focusTitle=1`);
         });
       }}
     >

@@ -34,7 +34,7 @@ export function useNewTab(spaces: SpaceOption[]) {
         spaceSlug: space.slug,
         title: page.title || "Untitled",
       });
-      router.push(`/${space.slug}/${page.id}`);
+      router.push(`/${space.slug}/${page.id}?focusTitle=1`);
     });
   }, [spaces, spaceSlug, router]);
 

@@ -7,6 +7,7 @@ import { MoreHorizontal } from "lucide-react";
 import clsx from "clsx";
 import type { Page } from "@/lib/db/types";
 import PageActionsMenu, { type MenuSpace } from "@/components/page-actions/PageActionsMenu";
+import { DefaultPageIcon, PageIcon } from "@/lib/icons";
 
 const HOVER_BTN_CLASS =
   "flex h-5 w-5 items-center justify-center rounded text-neutral-400 hover:bg-neutral-300/70 hover:text-neutral-700 dark:text-neutral-500 dark:hover:bg-neutral-700 dark:hover:text-neutral-200";
@@ -39,8 +40,8 @@ export default function FlatPageRow({
           : "text-neutral-700 hover:bg-neutral-200/60 dark:text-neutral-300 dark:hover:bg-neutral-800/70"
       )}
     >
-      <span className="flex w-4 shrink-0 items-center justify-center text-sm leading-none">
-        {page.icon ?? "📄"}
+      <span className="flex w-4 shrink-0 items-center justify-center leading-none">
+        <PageIcon icon={page.icon} size={14} fallback={<DefaultPageIcon size={14} />} />
       </span>
       <Link href={href} className="min-w-0 flex-1 truncate">
         {page.title}

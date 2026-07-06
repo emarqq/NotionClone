@@ -8,6 +8,7 @@ import SubPagesList from "@/components/page-nav/SubPagesList";
 import TabSync from "@/components/tabs/TabSync";
 import { getBlocks } from "@/lib/db/blocks";
 import { getAncestors, getChildren, getPage, getSpaces } from "@/lib/db/pages";
+import { PageIcon } from "@/lib/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -40,8 +41,8 @@ export default async function PageView({
       <div className="mx-auto max-w-3xl px-6 py-12">
         <header className="mb-8 flex items-start gap-3">
           {page.icon && (
-            <span className="text-4xl leading-[1.15]" aria-hidden>
-              {page.icon}
+            <span className="mt-1 leading-[1.15]">
+              <PageIcon icon={page.icon} size={36} />
             </span>
           )}
           <TitleInput pageId={page.id} initialTitle={page.title} />

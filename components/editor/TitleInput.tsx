@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { renamePageTitleAction } from "@/app/actions/editor";
 
 /** Big editable page title, saved on blur / Enter. */
@@ -14,13 +14,25 @@ export default function TitleInput({
 }) {
   const [title, setTitle] = useState(initialTitle);
   const lastSavedRef = useRef(initialTitle);
+  const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   // Adopt server-provided title after refreshes / navigation.
   useEffect(() => {
     setTitle(initialTitle);
     lastSavedRef.current = initialTitle;
   }, [initialTitle, pageId]);
+
+  // Newly created pages navigate here with ?focusTitle=1 — jump straight
+  // into the title, selected, so typing replaces the "New page" default.
+  useEffect(() => {
+    if (searchParams.get("focusTitle") !== "1") return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+    router.replace(pathname, { scroll: false });
+  }, [pathname, searchParams, router]);
 
   const commit = async () => {
     const next = title.trim() || "Untitled";
@@ -33,6 +45,7 @@ export default function TitleInput({
 
   return (
     <input
+      ref={inputRef}
       value={title}
       onChange={(e) => setTitle(e.target.value)}
       onBlur={commit}

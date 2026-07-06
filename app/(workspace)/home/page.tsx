@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getFavorites, getRecents, getSpaces } from "@/lib/db/pages";
 import type { Page, Space } from "@/lib/db/types";
+import { DefaultPageIcon, PageIcon } from "@/lib/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -49,16 +50,19 @@ function PageCardGrid({
               className="block rounded-lg border border-neutral-200 bg-white px-4 py-3 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:bg-neutral-800/70"
             >
               <div className="flex items-center gap-2">
-                <span className="shrink-0 text-lg leading-none">
-                  {page.icon ?? "📄"}
-                </span>
+                <PageIcon
+                  icon={page.icon}
+                  size={18}
+                  className="shrink-0 text-neutral-500 dark:text-neutral-400"
+                  fallback={<DefaultPageIcon size={18} />}
+                />
                 <span className="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
                   {page.title}
                 </span>
               </div>
               <div className="mt-2 flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500">
-                <span className="truncate">
-                  {space.icon ? `${space.icon} ` : ""}
+                <span className="flex min-w-0 items-center gap-1 truncate">
+                  <PageIcon icon={space.icon} size={12} className="shrink-0" />
                   {space.name}
                 </span>
                 <span aria-hidden>·</span>

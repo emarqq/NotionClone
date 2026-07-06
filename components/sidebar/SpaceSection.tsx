@@ -8,6 +8,7 @@ import clsx from "clsx";
 import type { PageTreeNode, Space } from "@/lib/db/types";
 import { movePageAction } from "@/app/actions/pages";
 import type { MenuSpace } from "@/components/page-actions/PageActionsMenu";
+import { PageIcon } from "@/lib/icons";
 import { canDrop, dragState } from "./dnd";
 import NewMeetingNoteButton from "./NewMeetingNoteButton";
 import NewPageButton from "./NewPageButton";
@@ -118,7 +119,7 @@ export default function SpaceSection({
           href={`/${space.slug}`}
           className="flex min-w-0 flex-1 items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-100"
         >
-          {space.icon && <span className="text-sm leading-none">{space.icon}</span>}
+          <PageIcon icon={space.icon} size={14} className="shrink-0" />
           <span className="truncate">{space.name}</span>
         </Link>
         <NewPageButton
