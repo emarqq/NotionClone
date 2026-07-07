@@ -1,26 +1,40 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* User-chosen accent colors, overridden at runtime via inline style on
+     <html> by ThemeSync (components/theme/ThemeSync.tsx). The *-foreground
+     pair is computed from each color's relative luminance so text placed on
+     an accent background always stays readable. */
+  --color-primary: #171717;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #2563eb;
+  --color-secondary-foreground: #ffffff;
+}
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  color-scheme: dark;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--color-primary);
+  --color-primary-foreground: var(--color-primary-foreground);
+  --color-secondary: var(--color-secondary);
+  --color-secondary-foreground: var(--color-secondary-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 html {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 body {

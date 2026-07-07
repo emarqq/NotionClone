@@ -93,7 +93,7 @@ export default function SpaceSection({
       <div
         className={clsx(
           "group/space flex items-center gap-1 rounded-md px-2 py-1",
-          headerDragOver && "bg-blue-100/70 ring-1 ring-inset ring-blue-500 dark:bg-blue-900/30"
+          headerDragOver && "bg-secondary/10 ring-1 ring-inset ring-secondary dark:bg-secondary/20"
         )}
         onDragOver={(e) => {
           // Drop on the header = move to this space's top level.

@@ -69,10 +69,10 @@ export default function PageRow({
       className={clsx(
         "group/row relative flex items-center gap-1 rounded-md py-1 pr-1 text-sm",
         isActive
-          ? "bg-neutral-200/80 font-medium text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+          ? "bg-secondary/10 font-medium text-neutral-900 dark:bg-secondary/15 dark:text-neutral-100"
           : "text-neutral-700 hover:bg-neutral-200/60 dark:text-neutral-300 dark:hover:bg-neutral-800/70",
         dragOver &&
-          "bg-blue-100/70 ring-1 ring-inset ring-blue-500 dark:bg-blue-900/30",
+          "bg-secondary/10 ring-1 ring-inset ring-secondary dark:bg-secondary/20",
         isPending && "opacity-60"
       )}
       style={{ paddingLeft: depth * 12 + 4 }}
@@ -138,7 +138,7 @@ export default function PageRow({
         <input
           autoFocus
           defaultValue={node.title}
-          className="min-w-0 flex-1 rounded border border-blue-400 bg-white px-1 text-sm text-neutral-900 outline-none dark:bg-neutral-900 dark:text-neutral-100"
+          className="min-w-0 flex-1 rounded border border-secondary bg-white px-1 text-sm text-neutral-900 outline-none dark:bg-neutral-900 dark:text-neutral-100"
           onFocus={(e) => e.currentTarget.select()}
           onKeyDown={(e) => {
             if (e.key === "Enter") {

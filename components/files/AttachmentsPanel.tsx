@@ -248,7 +248,7 @@ export default function AttachmentsPanel({ pageId }: { pageId: string }) {
       onDragOver={onDragOver}
       className={`mt-8 rounded-lg transition-colors ${
         dragActive
-          ? "bg-blue-50 outline-2 outline-dashed outline-blue-400 dark:bg-blue-950/40 dark:outline-blue-500"
+          ? "bg-secondary/10 outline-2 outline-dashed outline-secondary dark:bg-secondary/20"
           : ""
       }`}
     >

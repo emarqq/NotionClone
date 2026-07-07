@@ -6,6 +6,7 @@ import {
   getRecents,
   getSpaces,
 } from "@/lib/db/pages";
+import SettingsModal from "@/components/settings/SettingsModal";
 import CollapsibleSection from "./CollapsibleSection";
 import FlatPageRow from "./FlatPageRow";
 import NewSpaceButton from "./NewSpaceButton";
@@ -99,6 +100,7 @@ export default async function Sidebar() {
         ))}
         <section>
           <NewSpaceButton />
+          <SettingsModal />
         </section>
       </nav>
     </aside>

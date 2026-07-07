@@ -325,7 +325,7 @@ export default function PageActionsMenu({
                   </button>
                   <button
                     type="submit"
-                    className="rounded bg-neutral-900 px-2 py-1 text-xs text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
+                    className="rounded bg-primary px-2 py-1 text-xs text-primary-foreground hover:opacity-90"
                   >
                     Save
                   </button>

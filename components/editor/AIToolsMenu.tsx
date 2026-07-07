@@ -72,10 +72,10 @@ const rowClass =
 
 const markButtonClass = (active: boolean) =>
   clsx(
-    "flex shrink-0 items-center justify-center rounded-md p-1.5 text-neutral-700 dark:text-neutral-200",
+    "flex shrink-0 items-center justify-center rounded-md p-1.5",
     active
-      ? "bg-neutral-200 dark:bg-neutral-700"
-      : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+      ? "bg-secondary/15 text-secondary"
+      : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
   );
 
 /**

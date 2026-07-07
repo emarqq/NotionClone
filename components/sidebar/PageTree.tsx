@@ -123,7 +123,7 @@ function DropZone({
       style={{ marginLeft: depth * 12 + 8 }}
       className={clsx(
         "relative z-10 -my-0.5 h-1 rounded-full",
-        over && "bg-blue-500/80"
+        over && "bg-secondary/80"
       )}
       onDragOver={(e) => {
         if (isValidTarget()) {

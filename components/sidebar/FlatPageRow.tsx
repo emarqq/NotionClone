@@ -36,7 +36,7 @@ export default function FlatPageRow({
       className={clsx(
         "group/row relative flex items-center gap-1.5 rounded-md px-2 py-1 text-sm",
         isActive
-          ? "bg-neutral-200/80 font-medium text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+          ? "bg-secondary/10 font-medium text-neutral-900 dark:bg-secondary/15 dark:text-neutral-100"
           : "text-neutral-700 hover:bg-neutral-200/60 dark:text-neutral-300 dark:hover:bg-neutral-800/70"
       )}
     >

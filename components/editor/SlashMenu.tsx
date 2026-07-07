@@ -188,7 +188,7 @@ export default function SlashMenu({
             className={clsx(
               "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm",
               i === selected
-                ? "bg-neutral-100 dark:bg-neutral-800"
+                ? "bg-secondary/10 dark:bg-secondary/15"
                 : "hover:bg-neutral-50 dark:hover:bg-neutral-800/60"
             )}
             onMouseDown={(e) => e.preventDefault()}

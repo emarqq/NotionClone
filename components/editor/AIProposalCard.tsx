@@ -241,7 +241,7 @@ export default function AIProposalCard({ editor }: { editor: Editor }) {
               type="button"
               disabled={stale || text.trim().length === 0}
               onClick={accept}
-              className="flex items-center gap-1 rounded-md bg-neutral-900 px-2 py-1 text-xs text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
+              className="flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Check size={13} />
               Accept

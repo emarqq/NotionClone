@@ -107,7 +107,7 @@ export default function NewSpaceButton() {
                     type="button"
                     disabled={!name.trim() || isPending}
                     onClick={submit}
-                    className="rounded bg-neutral-800 px-3 py-1 text-xs font-medium text-white hover:bg-neutral-700 disabled:opacity-40 dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-neutral-300"
+                    className="rounded bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-40"
                   >
                     Create
                   </button>

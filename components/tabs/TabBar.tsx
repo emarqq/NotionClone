@@ -166,7 +166,7 @@ export default function TabBar({ spaces }: TabBarProps) {
                 className={clsx(
                   "group flex h-[30px] min-w-[100px] max-w-[200px] shrink-0 cursor-pointer select-none items-center gap-1 rounded-t-md border-b-2 px-2 text-[13px]",
                   isActive
-                    ? "border-neutral-700 bg-white font-medium text-neutral-900 dark:border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100"
+                    ? "border-neutral-700 bg-secondary/10 font-medium text-neutral-900 dark:border-neutral-200 dark:bg-secondary/15 dark:text-neutral-100"
                     : "border-transparent text-neutral-500 hover:bg-neutral-200/60 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
                 )}
               >

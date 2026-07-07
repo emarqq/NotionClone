@@ -200,7 +200,7 @@ export default function AiPanel({ spaces }: AiPanelProps) {
                       className={clsx(
                         "group flex cursor-pointer items-center gap-1 px-3 py-1.5 text-left text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800",
                         conversation.id === activeConversationId &&
-                          "bg-neutral-100 dark:bg-neutral-800"
+                          "bg-secondary/10 dark:bg-secondary/15"
                       )}
                     >
                       <div className="min-w-0 flex-1">
@@ -294,7 +294,7 @@ export default function AiPanel({ spaces }: AiPanelProps) {
             <button
               type="button"
               onClick={abort}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-neutral-800 text-white hover:bg-neutral-700 dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-neutral-300"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground hover:opacity-90"
               title="Stop generating"
               aria-label="Stop generating"
             >
@@ -305,7 +305,7 @@ export default function AiPanel({ spaces }: AiPanelProps) {
               type="button"
               onClick={handleSend}
               disabled={!input.trim()}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-neutral-800 text-white hover:bg-neutral-700 disabled:pointer-events-none disabled:opacity-35 dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-neutral-300"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:pointer-events-none disabled:opacity-35"
               title="Send (Enter)"
               aria-label="Send message"
             >

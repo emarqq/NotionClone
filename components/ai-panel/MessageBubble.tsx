@@ -102,7 +102,7 @@ export default function MessageBubble({ message }: { message: AiChatMessage }) {
         className={clsx(
           "max-w-[90%] rounded-lg px-3 py-2 text-[13px] leading-relaxed",
           isUser
-            ? "bg-neutral-800 text-neutral-50 dark:bg-neutral-200 dark:text-neutral-900"
+            ? "bg-primary text-primary-foreground"
             : "bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-100"
         )}
       >
