@@ -47,6 +47,20 @@ export async function createConversation(
   return data as AiConversation;
 }
 
+/** Looks up a single conversation by id, or null if it doesn't exist. */
+export async function getConversation(
+  conversationId: string
+): Promise<AiConversation | null> {
+  const supabase = createServiceSupabase();
+  const { data, error } = await supabase
+    .from("ai_conversations")
+    .select("*")
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (error) throw new Error(`getConversation failed: ${error.message}`);
+  return (data as AiConversation | null) ?? null;
+}
+
 /** Messages of a conversation in chronological order. */
 export async function getMessages(conversationId: string): Promise<AiMessage[]> {
   const supabase = createServiceSupabase();
