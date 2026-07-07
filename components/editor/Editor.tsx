@@ -11,6 +11,8 @@ import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
 import Placeholder from "@tiptap/extension-placeholder";
 import Image from "@tiptap/extension-image";
+import Underline from "@tiptap/extension-underline";
+import Highlight from "@tiptap/extension-highlight";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import clsx from "clsx";
 
@@ -98,7 +100,7 @@ export default function Editor({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
+        heading: { levels: [1, 2, 3, 4] },
       }),
       TaskList,
       TaskItem.configure({ nested: false }),
@@ -107,6 +109,8 @@ export default function Editor({
       TableHeader,
       TableCell,
       Image,
+      Underline,
+      Highlight.configure({ multicolor: true }),
       Callout,
       Toggle,
       ToggleSummary,

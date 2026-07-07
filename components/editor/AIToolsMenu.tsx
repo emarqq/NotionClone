@@ -6,8 +6,12 @@ import type { Editor } from "@tiptap/core";
 import clsx from "clsx";
 import {
   ArrowRightCircle,
+  Bold,
+  Italic,
   ListTree,
   Sparkles,
+  Strikethrough,
+  Underline as UnderlineIcon,
   WandSparkles,
   Wand2,
 } from "lucide-react";
@@ -27,6 +31,35 @@ const TOOLS: ToolButton[] = [
   { tool: "organize", label: "Organize", icon: ListTree },
   { tool: "continue", label: "Continue writing", icon: ArrowRightCircle },
 ];
+
+interface MarkButton {
+  mark: string;
+  label: string;
+  icon: typeof Bold;
+  toggle: (editor: Editor) => void;
+}
+
+const MARK_BUTTONS: MarkButton[] = [
+  { mark: "bold", label: "Bold", icon: Bold, toggle: (e) => e.chain().focus().toggleBold().run() },
+  { mark: "italic", label: "Italic", icon: Italic, toggle: (e) => e.chain().focus().toggleItalic().run() },
+  { mark: "strike", label: "Strikethrough", icon: Strikethrough, toggle: (e) => e.chain().focus().toggleStrike().run() },
+  { mark: "underline", label: "Underline", icon: UnderlineIcon, toggle: (e) => e.chain().focus().toggleUnderline().run() },
+];
+
+const HIGHLIGHT_COLORS: { label: string; color: string }[] = [
+  { label: "Yellow", color: "#fef08a" },
+  { label: "Green", color: "#bbf7d0" },
+  { label: "Blue", color: "#bfdbfe" },
+  { label: "Pink", color: "#fbcfe8" },
+];
+
+const markButtonClass = (active: boolean) =>
+  clsx(
+    "flex shrink-0 items-center rounded-md p-1.5 text-neutral-700 dark:text-neutral-200",
+    active
+      ? "bg-neutral-200 dark:bg-neutral-700"
+      : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+  );
 
 /**
  * Floating selection menu (Tiptap BubbleMenu): Summarize / Format / Organize /
@@ -110,6 +143,38 @@ export default function AIToolsMenu({
       >
         {!rewriteOpen ? (
           <>
+            {MARK_BUTTONS.map(({ mark, label, icon: Icon, toggle }) => (
+              <button
+                key={mark}
+                type="button"
+                title={label}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => toggle(editor)}
+                className={markButtonClass(editor.isActive(mark))}
+              >
+                <Icon size={14} className="shrink-0" />
+              </button>
+            ))}
+            <div className="flex shrink-0 items-center gap-1 px-1">
+              {HIGHLIGHT_COLORS.map(({ label, color }) => (
+                <button
+                  key={color}
+                  type="button"
+                  title={`Highlight: ${label}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() =>
+                    editor.chain().focus().toggleHighlight({ color }).run()
+                  }
+                  className={clsx(
+                    "size-4 shrink-0 rounded-full border border-neutral-300 dark:border-neutral-600",
+                    editor.isActive("highlight", { color }) &&
+                      "ring-2 ring-offset-1 ring-neutral-500 dark:ring-offset-neutral-900"
+                  )}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+            <div className="mx-1 h-5 w-px shrink-0 bg-neutral-200 dark:bg-neutral-700" />
             {TOOLS.map(({ tool, label, icon: Icon }) => (
               <button
                 key={tool}
