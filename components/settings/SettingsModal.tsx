@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Settings } from "lucide-react";
 import { useThemeStore, type ThemeMode } from "@/components/theme/store";
+import ImportDocsSection from "@/components/settings/ImportDocsSection";
 
 const MODES: { value: ThemeMode; label: string }[] = [
   { value: "light", label: "Light" },
@@ -40,7 +41,7 @@ export default function SettingsModal() {
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-80 rounded-md border border-neutral-200 bg-white p-3 text-sm shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
+            className="max-h-[85vh] w-96 overflow-y-auto rounded-md border border-neutral-200 bg-white p-3 text-sm shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="mb-3 font-medium text-neutral-800 dark:text-neutral-200">
@@ -110,6 +111,8 @@ export default function SettingsModal() {
                 />
               </div>
             </div>
+
+            <ImportDocsSection />
 
             <div className="flex justify-end">
               <button
