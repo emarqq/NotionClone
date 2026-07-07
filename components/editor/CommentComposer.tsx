@@ -103,6 +103,9 @@ export default function CommentComposer({
         .focus()
         .setTextSelection({ from: composer.from, to: composer.to })
         .setComment(threadId)
+        // Collapse the selection so the bubble menu (shown on non-empty
+        // selection) hides and doesn't overlap the thread popover.
+        .setTextSelection(composer.to)
         .run();
       closeComposer();
       refresh();

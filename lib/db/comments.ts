@@ -172,17 +172,20 @@ export async function reconcilePageComments(pageId: string): Promise<void> {
 
   const { data: existingData, error: existingError } = await supabase
     .from("comment_threads")
-    .select("id, block_id, orphaned")
+    .select("id, block_id, orphaned, resolved")
     .eq("page_id", pageId);
   if (existingError) {
     throw new Error(`reconcilePageComments read failed: ${existingError.message}`);
   }
   const existing = (existingData ?? []) as Pick<
     CommentThread,
-    "id" | "block_id" | "orphaned"
+    "id" | "block_id" | "orphaned" | "resolved"
   >[];
 
   for (const thread of existing) {
+    // Resolved threads intentionally have no mark (removed on resolve); never
+    // re-anchor or orphan-flag them.
+    if (thread.resolved) continue;
     const anchoredBlock = blockByThread.get(thread.id);
     if (anchoredBlock) {
       // Anchor present — refresh block_id and clear any orphan flag.

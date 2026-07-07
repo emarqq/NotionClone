@@ -33,6 +33,8 @@ import SlashMenu from "./SlashMenu";
 import MentionMenu from "./MentionMenu";
 import LinkEditor from "./LinkEditor";
 import CommentComposer from "./CommentComposer";
+import CommentThreadPopover from "./CommentThreadPopover";
+import { useCommentStore } from "./commentStore";
 import AIToolsMenu from "./AIToolsMenu";
 import AIProposalCard from "./AIProposalCard";
 import "./editor.css";
@@ -167,6 +169,18 @@ export default function Editor({
             return true;
           }
         }
+        // Clicking commented text opens its thread popover. Detect via the
+        // rendered span (handleClickOn passes the block node for plain marked
+        // text, so node.marks wouldn't carry the comment mark).
+        const commentEl = (event.target as HTMLElement | null)?.closest?.(
+          "[data-comment-thread]"
+        );
+        const threadId = commentEl?.getAttribute("data-comment-thread");
+        if (threadId) {
+          event.preventDefault();
+          useCommentStore.getState().openThread(threadId);
+          return true;
+        }
         return false;
       },
       handlePaste: (view, event) => {
@@ -228,6 +242,7 @@ export default function Editor({
             <MentionMenu editor={editor} pageId={pageId} />
             <LinkEditor editor={editor} />
             <CommentComposer editor={editor} pageId={pageId} />
+            <CommentThreadPopover editor={editor} pageId={pageId} />
             <AIProposalCard editor={editor} />
           </>
         )}
