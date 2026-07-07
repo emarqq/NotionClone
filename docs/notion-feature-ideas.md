@@ -7,7 +7,9 @@ A planning menu of Notion's real, current (2025–2026) feature set, organized b
 - 🟡 **PARTIAL** — a related capability exists; this is an extension of it.
 - ⬜ **NEW** — not in the clone yet.
 
-**Current clone baseline (assumed already built):** workspaces/"spaces", nested page hierarchy, block-based editor, sidebar with Favorites + Recents, page rename / change-icon / archive / delete, drag-and-drop page reordering, AI panel with RAG over the user's own pages, tags, page-to-page links, file attachments.
+**Current clone baseline (assumed already built):** workspaces/"spaces", nested page hierarchy, block-based editor, sidebar with Favorites + Recents, page rename / change-icon / archive / delete, drag-and-drop page reordering, AI panel with RAG over the user's own pages, tags, sub-pages rendered as blocks, file attachments.
+
+> **Corrected 2026-07-06** against current code (see `docs/FEATURE-PLAN.md`). Several rows below were marked incorrectly against what's actually in the repo; those rows now carry a "(corrected 2026-07-06)" note. Notably: "page-to-page links" was listed above as already built — it isn't; only whole sub-pages render as blocks. There is no inline page-link/mention node, no Cmd-K hyperlink support, and the `links` table (schema exists) has zero code reading or writing it today.
 
 Complexity is relative to a single developer maintaining an existing block editor + Supabase/Postgres backend. "High" usually means either hard real-time/CRDT work, a whole new data subsystem (databases), or heavy infra (hosting, transcription).
 
@@ -20,19 +22,19 @@ The heart of Notion is a block-based editor where every piece of content (paragr
 | Feature | What it does | Status | Complexity |
 |---|---|---|---|
 | Text / paragraph block | Basic writing block; the default. | ✅ HAVE | Low |
-| Headings (H1/H2/H3) | Three heading levels; H2/H3 are collapsible in current Notion. | 🟡 (likely have) | Low |
-| Bulleted / numbered / to-do lists | Standard lists; to-do adds a checkbox that can strike through. | 🟡 | Low |
-| Toggle list | Collapsible block that hides/shows nested content. | ⬜ | Low–Medium |
-| Quote block | Indented, styled quotation. | ⬜ | Low |
-| Callout block | Boxed note with an emoji icon and background color, for emphasis/tips. | ⬜ | Low |
-| Divider | Horizontal rule to separate sections. | ⬜ | Low |
-| Code block | Monospaced block with syntax highlighting and language selector; copy button. | ⬜ | Medium |
-| Math / LaTeX (block & inline) | Render TeX equations inline or as blocks (KaTeX-style). | ⬜ | Medium |
-| Quote/Highlight & rich text formatting | Bold, italic, underline, strikethrough, inline code, text/highlight colors, links. | 🟡 | Low–Medium |
+| Headings (H1/H2/H3) | Three heading levels; H2/H3 are collapsible in current Notion. | ✅ HAVE (corrected 2026-07-06 — `Editor.tsx` registers levels 1–3; not collapsible) | Low |
+| Bulleted / numbered / to-do lists | Standard lists; to-do adds a checkbox that can strike through. | ✅ HAVE (corrected 2026-07-06 — SlashMenu: Bullet list, Numbered list, To-do list) | Low |
+| Toggle list | Collapsible block that hides/shows nested content. | ✅ HAVE (corrected 2026-07-06 — custom Toggle extension + SlashMenu "Toggle") | Low–Medium |
+| Quote block | Indented, styled quotation. | ✅ HAVE (corrected 2026-07-06 — `toggleBlockquote`, SlashMenu "Quote") | Low |
+| Callout block | Boxed note with an emoji icon and background color, for emphasis/tips. | ✅ HAVE (corrected 2026-07-06 — custom Callout extension + SlashMenu "Callout") | Low |
+| Divider | Horizontal rule to separate sections. | ✅ HAVE (corrected 2026-07-06 — `setHorizontalRule`, SlashMenu "Divider") | Low |
+| Code block | Monospaced block with syntax highlighting and language selector; copy button. | 🟡 PARTIAL (corrected 2026-07-06 — block exists via StarterKit's `toggleCodeBlock`; no syntax highlighting, language selector, or copy button confirmed) | Medium |
+| Math / LaTeX (block & inline) | Render TeX equations inline or as blocks (KaTeX-style). | ⬜ (confirmed 2026-07-06 — no math/KaTeX dependency present) | Medium |
+| Quote/Highlight & rich text formatting | Bold, italic, underline, strikethrough, inline code, text/highlight colors, links. | 🟡 PARTIAL (corrected 2026-07-06 — only Bold/Italic/Strike/Code marks exist via StarterKit; no Underline, Highlight, text color, or Link extension installed) | Low–Medium |
 | Toggle headings | Headings that collapse the section beneath them. | ⬜ | Medium |
 | Columns / column layout | Arrange blocks side-by-side in resizable columns; Notion now supports flexible multi-column drag. | ⬜ | Medium–High |
-| Table (simple) | Basic non-database grid table for static content. | ⬜ | Medium |
-| Image block | Inline image with resize, caption, alignment. | 🟡 (attachments) | Low–Medium |
+| Table (simple) | Basic non-database grid table for static content. | ✅ HAVE (corrected 2026-07-06 — Tiptap Table extension registered, SlashMenu "Table" inserts a 3×3 grid) | Medium |
+| Image block | Inline image with resize, caption, alignment. | 🟡 PARTIAL (corrected 2026-07-06 — Image extension registered but insert-only via paste; no slash-menu item, no resize/caption/alignment UI) | Low–Medium |
 | Video / audio / file embeds | Upload or embed media that plays inline. | 🟡 | Medium |
 | Web bookmark | Paste a URL → rich preview card (title, description, favicon). | ⬜ | Medium (needs link unfurl service) |
 | Embed block | Embed 500+ external tools (YouTube, Figma, Maps, Loom, PDFs, tweets) via iframe/oEmbed. | ⬜ | Medium |
@@ -41,10 +43,10 @@ The heart of Notion is a block-based editor where every piece of content (paragr
 | Breadcrumb block | Shows the page's location in the hierarchy, inline. | 🟡 (breadcrumbs exist) | Low |
 | Button block | Configurable button that runs actions (insert blocks, create pages, edit DB rows). | ⬜ | Medium–High |
 | Sub-page block | A nested page rendered as a block in the parent. | ✅ HAVE | — |
-| Link-to-page block | An inline pointer/alias to another page. | ✅ HAVE | Low |
+| Link-to-page block | An inline pointer/alias to another page. | ⬜ (corrected 2026-07-06 — was wrongly marked HAVE; no inline page-link/mention node exists, only whole sub-pages render as blocks, and the `links` table is schema-only/unused by any code) | Low |
 | Block-level slash conversion | Turn any block into another type (e.g., text → heading → to-do). | 🟡 | Low–Medium |
 | Block drag handle + reorder | Grab handle to drag/reorder/indent blocks; multi-select. | 🟡 (page reorder exists) | Medium |
-| Duplicate / move-to / color / comment on block | Right-click block menu actions. | ⬜ | Low–Medium |
+| Duplicate / move-to / color / comment on block | Right-click block menu actions. | ⬜ (corrected 2026-07-06 — page-level `duplicatePage` exists in `lib/db/pages.ts`, but no block-level duplicate/move-to/color/comment menu exists) | Low–Medium |
 | Nested / indented blocks | Blocks can contain child blocks to arbitrary depth. | 🟡 | Medium |
 
 ---
@@ -121,7 +123,7 @@ Notion databases are collections of pages, each row is a full page, columns are 
 |---|---|---|---|
 | Real-time multiplayer editing | Multiple users edit the same page live, with presence cursors/avatars. | ⬜ | High (CRDT/OT + realtime infra) |
 | Comments (page & inline) | Threaded comments on a page or anchored to specific text/blocks; resolve threads. | ⬜ | Medium |
-| Mentions (@person / @page / @date) | Inline references to people, pages, or dates that notify/link. | 🟡 (links exist) | Medium |
+| Mentions (@person / @page / @date) | Inline references to people, pages, or dates that notify/link. | 🟡 PARTIAL (corrected 2026-07-06 — `links` table exists in schema only; zero code reads or writes it, and no mention UI exists) | Medium |
 | Notifications & inbox | In-app + email/mobile notifications for mentions, comments, assignments; an Inbox feed. | ⬜ | Medium |
 | Sharing & permissions | Per-page/per-workspace access levels: Full access, Edit, Comment, View. | ⬜ | Medium–High |
 | Guests | Invite external emails to specific pages without full workspace membership. | ⬜ | Medium |
@@ -188,7 +190,7 @@ Notion has moved from inline writing help toward autonomous **Agents** and cross
 | Dates, reminders & recurring | Inline dates with @remind, time zones, and recurring reminders/tasks. | ⬜ | Medium |
 | Web Clipper | Browser extension to save any web page into a workspace page/database. | ⬜ | Medium (extension) |
 | Quick capture / global new | Fast "new page/task" entry from anywhere. | ⬜ | Low |
-| Color & highlight menu | Text/background color on selection. | 🟡 | Low |
+| Color & highlight menu | Text/background color on selection. | ⬜ (corrected 2026-07-06 — no Highlight/Color extension installed, and no formatting bubble menu of any kind exists to hold such a control) | Low |
 | Drag-select multiple blocks | Rubber-band select and act on many blocks at once. | ⬜ | Medium |
 | Emoji picker / slash-emoji | `:emoji:` insertion. | ⬜ | Low |
 | Duplicate / move / copy-link-to-block | Block anchor links (`#block-id`) and copy-link. | ⬜ | Low–Medium |
@@ -229,7 +231,7 @@ Notion has moved from inline writing help toward autonomous **Agents** and cross
 
 | Feature | What it does | Status | Complexity |
 |---|---|---|---|
-| Desktop app | Native Electron desktop client. | 🟡 (Electron app WIP in repo) | Medium |
+| Desktop app | Native Electron desktop client. | ✅ HAVE (corrected 2026-07-06 — per `docs/ARCHITECTURE.md` addendum 2026-07-04, a working Electron app is installed to `~/Applications`, build/launch verified end-to-end) | Medium |
 | Mobile apps (iOS/Android) | Native mobile clients with quick capture and widgets. | ⬜ | High |
 | Offline mode | Read/edit offline; sync on reconnect. | ⬜ | High |
 | Cross-device real-time sync | Changes propagate across all sessions instantly. | 🟡 (Supabase) | Medium–High |
