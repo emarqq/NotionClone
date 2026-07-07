@@ -35,6 +35,7 @@ import LinkEditor from "./LinkEditor";
 import CommentComposer from "./CommentComposer";
 import CommentThreadPopover from "./CommentThreadPopover";
 import { useCommentStore } from "./commentStore";
+import CommentsPanel from "@/components/comments/CommentsPanel";
 import AIToolsMenu from "./AIToolsMenu";
 import AIProposalCard from "./AIProposalCard";
 import "./editor.css";
@@ -243,6 +244,7 @@ export default function Editor({
             <LinkEditor editor={editor} />
             <CommentComposer editor={editor} pageId={pageId} />
             <CommentThreadPopover editor={editor} pageId={pageId} />
+            <CommentsPanel editor={editor} pageId={pageId} />
             <AIProposalCard editor={editor} />
           </>
         )}
