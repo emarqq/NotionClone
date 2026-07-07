@@ -108,7 +108,6 @@ export const Toggle = Node.create({
       const button = document.createElement("button");
       button.type = "button";
       button.className = "toggle-chevron";
-      button.contentEditable = "false";
       button.setAttribute("aria-label", "Expand / collapse");
       button.innerHTML = CHEVRON_SVG;
       // Keep the editor selection when clicking the chevron.

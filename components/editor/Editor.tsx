@@ -23,6 +23,7 @@ import { Autocorrect } from "./extensions/autocorrect";
 import { BlockId } from "./extensions/block-id";
 import { Callout } from "./extensions/callout";
 import { MoveBlock } from "./extensions/move-block";
+import { SelectAll } from "./extensions/select-all";
 import { Toggle, ToggleContent, ToggleSummary } from "./extensions/toggle";
 import SlashMenu from "./SlashMenu";
 import AIToolsMenu from "./AIToolsMenu";
@@ -117,6 +118,7 @@ export default function Editor({
       ToggleContent,
       BlockId,
       MoveBlock,
+      SelectAll,
       Autocorrect,
       Placeholder.configure({
         placeholder: ({ node }) =>
