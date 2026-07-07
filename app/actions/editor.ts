@@ -7,6 +7,7 @@ import { renamePage } from "@/lib/db/pages";
 import { reconcilePageLinks } from "@/lib/db/links";
 import { reconcilePageComments } from "@/lib/db/comments";
 import { ingestPage } from "@/lib/rag/ingest";
+import { scheduleExport, scheduleExportRename } from "@/lib/export/schedule";
 
 /** Re-ingests a page after its content changes; failures never break the caller. */
 function scheduleIngest(pageId: string): void {
@@ -45,6 +46,7 @@ export async function saveBlocksAction(
     scheduleIngest(pageId);
     scheduleLinkSync(pageId);
     scheduleCommentSync(pageId);
+    scheduleExport(pageId);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -62,6 +64,8 @@ export async function renamePageTitleAction(
     revalidatePath("/", "layout");
     // Title feeds chunk breadcrumbs, so re-ingest to refresh them.
     scheduleIngest(pageId);
+    // Title drives the vault filename + child folder + inbound [[wikilinks]].
+    scheduleExportRename(pageId);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
