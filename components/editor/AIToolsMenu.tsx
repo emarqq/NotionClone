@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BubbleMenu } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import clsx from "clsx";
@@ -65,6 +65,8 @@ const HIGHLIGHT_COLORS: { label: string; color: string }[] = [
 // SlashMenu-only inserts and don't appear as "Turn into" targets.
 const TURN_INTO_ITEMS = BLOCK_ITEMS.filter((item) => item.turnInto !== false);
 
+const TURN_INTO_HOVER_DELAY_MS = 400;
+
 const rowClass =
   "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800";
 
@@ -94,8 +96,23 @@ export default function AIToolsMenu({
   const [view, setView] = useState<"main" | "turnInto">("main");
   const [instruction, setInstruction] = useState("");
   const open = useAIProposalStore((s) => s.open);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearHoverTimer = () => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  };
+  useEffect(() => clearHoverTimer, []);
+
+  const scheduleTurnIntoOpen = () => {
+    clearHoverTimer();
+    hoverTimerRef.current = setTimeout(() => setView("turnInto"), TURN_INTO_HOVER_DELAY_MS);
+  };
 
   const reset = () => {
+    clearHoverTimer();
     setView("main");
     setInstruction("");
   };
@@ -202,6 +219,8 @@ export default function AIToolsMenu({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => setView("turnInto")}
+              onMouseEnter={scheduleTurnIntoOpen}
+              onMouseLeave={clearHoverTimer}
               className={rowClass}
             >
               <CurrentIcon size={15} className="shrink-0 text-neutral-500 dark:text-neutral-400" />
