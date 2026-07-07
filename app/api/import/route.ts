@@ -103,7 +103,14 @@ async function importFromFolder(dirInput: string | undefined): Promise<NextRespo
       const bytes = new Uint8Array(await fs.readFile(absPath));
       const filename = path.basename(absPath);
       const result = await importDoc(
-        { bytes, filename, sourcePath: absPath, mimeType: mimeForFilename(filename), spaceId: space.id },
+        {
+          bytes,
+          filename,
+          sourcePath: absPath,
+          mirrorPath: path.relative(dir, absPath), // clean tree under Imported/, not the full disk path.
+          mimeType: mimeForFilename(filename),
+          spaceId: space.id,
+        },
         manifest
       );
       tally(summary, result);
@@ -147,6 +154,7 @@ async function importFromUpload(formData: FormData): Promise<NextResponse> {
           bytes,
           filename,
           sourcePath,
+          mirrorPath: sourcePath, // upload-relative path already; mirrors the picked folder tree.
           mimeType: file.type || mimeForFilename(filename),
           spaceId: space.id,
         },

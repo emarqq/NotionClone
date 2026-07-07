@@ -52,14 +52,17 @@ export async function importDoc(
   input: {
     bytes: Uint8Array;
     filename: string;
-    /** Absolute path (folder import) or upload-relative path — the doc's stable identity. */
+    /** Absolute path (folder import) or upload-relative path — the doc's stable identity + frontmatter source. */
     sourcePath: string;
+    /** Path relative to the import base, for the vault mirror's folder layout. Defaults to filename. */
+    mirrorPath?: string;
     mimeType: string;
     spaceId: string;
   },
   manifest: ImportManifest
 ): Promise<ImportDocResult> {
   const { bytes, filename, sourcePath, mimeType, spaceId } = input;
+  const mirrorPath = input.mirrorPath ?? filename;
   const base: Pick<ImportDocResult, "filename" | "sourcePath"> = { filename, sourcePath };
 
   try {
@@ -100,7 +103,7 @@ export async function importDoc(
     try {
       const segments = await extractFile(bytes, mimeType, filename);
       if (segments) {
-        vaultRel = await mirrorImportedDoc({ fileId, filename, sourcePath, segments });
+        vaultRel = await mirrorImportedDoc({ fileId, filename, sourcePath, mirrorPath, segments });
       }
     } catch (err) {
       console.error(`import mirror failed for ${sourcePath}:`, err);

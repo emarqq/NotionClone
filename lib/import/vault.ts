@@ -49,18 +49,19 @@ export function segmentsToMarkdown(segments: Segment[]): string {
 }
 
 /**
- * Build the mirror's rel path under `importedRoot()`, preserving the source
- * folder structure so Obsidian shows a recognizable tree. Each path segment is
- * sanitized; the file is `<name>.md`.
+ * Build the mirror's rel path under `importedRoot()` from a path *relative to
+ * the import base* (e.g. `projects/MosaicReel/SPEC.md`), preserving that folder
+ * structure so Obsidian shows a recognizable — and disambiguated — tree. Each
+ * segment is sanitized; the file is `<name>.md`. Any leading `..`/absolute
+ * segments are dropped so the result always stays under the imported root.
  */
-export function mirrorRelPath(sourcePath: string, filename: string): string {
-  const dir = path.dirname(sourcePath);
-  const segments = dir
-    .split(/[\\/]/)
-    .map((s) => sanitizeSegment(s))
-    .filter(Boolean);
-  const base = sanitizeSegment(filename.replace(/\.[^.]+$/, "")) || sanitizeSegment(filename) || "Untitled";
-  return [...segments, `${base}.md`].join("/");
+export function mirrorRelPath(relPath: string): string {
+  const parts = relPath.split(/[\\/]/).filter((s) => s && s !== "." && s !== "..");
+  const filename = parts.pop() ?? "Untitled";
+  const dirSegments = parts.map((s) => sanitizeSegment(s)).filter(Boolean);
+  const base =
+    sanitizeSegment(filename.replace(/\.[^.]+$/, "")) || sanitizeSegment(filename) || "Untitled";
+  return [...dirSegments, `${base}.md`].join("/");
 }
 
 /**
@@ -71,10 +72,13 @@ export function mirrorRelPath(sourcePath: string, filename: string): string {
 export async function mirrorImportedDoc(input: {
   fileId: string;
   filename: string;
+  /** Path recorded in frontmatter — the doc's stable source identity (absolute for folder imports). */
   sourcePath: string;
+  /** Path relative to the import base, used for the vault folder layout (defaults to filename). */
+  mirrorPath: string;
   segments: Segment[];
 }): Promise<string> {
-  const rel = mirrorRelPath(input.sourcePath, input.filename);
+  const rel = mirrorRelPath(input.mirrorPath);
   const body = segmentsToMarkdown(input.segments);
   const contents = buildMarkdownFile(
     {
