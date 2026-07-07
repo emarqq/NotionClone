@@ -3,27 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChainedCommands, Editor } from "@tiptap/core";
 import clsx from "clsx";
-import {
-  ArrowRightCircle,
-  ChevronRight,
-  Code,
-  Heading1,
-  Heading2,
-  Heading3,
-  Heading4,
-  Lightbulb,
-  List,
-  ListChecks,
-  ListOrdered,
-  Minus,
-  Quote,
-  Table,
-  Type,
-  type LucideIcon,
-} from "lucide-react";
+import { ArrowRightCircle, type LucideIcon } from "lucide-react";
 
 import { textBeforePosition } from "./aiContext";
 import { useAIProposalStore } from "./aiProposalStore";
+import { BLOCK_ITEMS } from "./blockItems";
 
 interface SlashItem {
   title: string;
@@ -36,20 +20,7 @@ interface SlashItem {
 }
 
 const ITEMS: SlashItem[] = [
-  { title: "Text", keywords: "paragraph plain", icon: Type, run: (c) => c.setParagraph() },
-  { title: "Heading 1", keywords: "h1 title", icon: Heading1, run: (c) => c.setHeading({ level: 1 }) },
-  { title: "Heading 2", keywords: "h2 subtitle", icon: Heading2, run: (c) => c.setHeading({ level: 2 }) },
-  { title: "Heading 3", keywords: "h3", icon: Heading3, run: (c) => c.setHeading({ level: 3 }) },
-  { title: "Heading 4", keywords: "h4", icon: Heading4, run: (c) => c.setHeading({ level: 4 }) },
-  { title: "Bullet list", keywords: "unordered ul", icon: List, run: (c) => c.toggleBulletList() },
-  { title: "Numbered list", keywords: "ordered ol", icon: ListOrdered, run: (c) => c.toggleOrderedList() },
-  { title: "To-do list", keywords: "task checkbox checklist", icon: ListChecks, run: (c) => c.toggleTaskList() },
-  { title: "Table", keywords: "grid rows columns", icon: Table, run: (c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }) },
-  { title: "Quote", keywords: "blockquote citation", icon: Quote, run: (c) => c.toggleBlockquote() },
-  { title: "Code block", keywords: "codeblock snippet", icon: Code, run: (c) => c.toggleCodeBlock() },
-  { title: "Callout", keywords: "info note box emoji", icon: Lightbulb, run: (c) => c.insertCallout() },
-  { title: "Toggle", keywords: "collapse details expand", icon: ChevronRight, run: (c) => c.insertToggle() },
-  { title: "Divider", keywords: "horizontal rule separator hr", icon: Minus, run: (c) => c.setHorizontalRule() },
+  ...BLOCK_ITEMS.map(({ title, keywords, icon, run }) => ({ title, keywords, icon, run })),
   {
     title: "Continue writing",
     keywords: "ai continue draft generate",
