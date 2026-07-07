@@ -9,13 +9,17 @@ import {
   deletePage,
   duplicatePage,
   getChildren,
+  getPage,
   movePage,
   movePageToSpace,
   renamePage,
+  setPageCover,
+  setPageCoverPosition,
   setPageIcon,
   toggleFavorite,
   touchLastViewed,
 } from "@/lib/db/pages";
+import { deleteFileByStoragePath } from "@/lib/db/files";
 import type { Page, Space } from "@/lib/db/types";
 import { ingestPage } from "@/lib/rag/ingest";
 
@@ -82,6 +86,35 @@ export async function setPageIconAction(
   icon: string | null
 ): Promise<Page> {
   const page = await setPageIcon(id, icon);
+  revalidatePath("/", "layout");
+  return page;
+}
+
+/**
+ * Sets (or clears, via `storagePath: null`) the cover image — `storagePath`
+ * is the `files.storage_path` returned by the existing `/api/files` upload
+ * pipeline. Best-effort deletes the previous cover's storage object + row so
+ * replacing/removing a cover doesn't leak storage.
+ */
+export async function setPageCoverAction(
+  id: string,
+  storagePath: string | null
+): Promise<Page> {
+  const previous = await getPage(id);
+  const page = await setPageCover(id, storagePath);
+  if (previous?.cover_url && previous.cover_url !== storagePath) {
+    await deleteFileByStoragePath(previous.cover_url);
+  }
+  revalidatePath("/", "layout");
+  return page;
+}
+
+export async function setPageCoverPositionAction(
+  id: string,
+  position: number
+): Promise<Page> {
+  const clamped = Math.min(100, Math.max(0, Math.round(position)));
+  const page = await setPageCoverPosition(id, clamped);
   revalidatePath("/", "layout");
   return page;
 }

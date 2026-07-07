@@ -21,6 +21,10 @@ export interface Page {
   parent_page_id: string | null;
   title: string;
   icon: string | null;
+  /** storage_path of a `files` row in the private `attachments` bucket. */
+  cover_url: string | null;
+  /** Vertical crop offset (0-100) for the cover banner's object-position. */
+  cover_position: number;
   /** Fractional-index key (see lib/positions.ts); sort lexicographically. */
   position: string;
   is_archived: boolean;

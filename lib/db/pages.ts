@@ -245,6 +245,41 @@ export async function setPageIcon(
   return data as Page;
 }
 
+/** Sets (or clears) the cover image; a new image always resets the crop offset. */
+export async function setPageCover(
+  id: string,
+  coverUrl: string | null
+): Promise<Page> {
+  const supabase = createServiceSupabase();
+  const { data, error } = await supabase
+    .from("pages")
+    .update({
+      cover_url: coverUrl,
+      cover_position: 50,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw new Error(`setPageCover failed: ${error.message}`);
+  return data as Page;
+}
+
+export async function setPageCoverPosition(
+  id: string,
+  position: number
+): Promise<Page> {
+  const supabase = createServiceSupabase();
+  const { data, error } = await supabase
+    .from("pages")
+    .update({ cover_position: position, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw new Error(`setPageCoverPosition failed: ${error.message}`);
+  return data as Page;
+}
+
 export async function archivePage(id: string): Promise<void> {
   const supabase = createServiceSupabase();
   const { error } = await supabase
@@ -359,6 +394,36 @@ export async function touchLastViewed(id: string): Promise<void> {
   if (error) {
     console.error(`touchLastViewed failed for page ${id}: ${error.message}`);
   }
+}
+
+/**
+ * All non-archived pages across every space, as flat mention/link options
+ * (`spaceSlug` resolved in JS to sidestep PostgREST embedding quirks), sorted
+ * by title. Backs the mention popup's `/api/pages` endpoint and lets the
+ * link reconciler validate targets.
+ */
+export async function getAllPages(): Promise<
+  { id: string; title: string; spaceSlug: string; icon: string | null }[]
+> {
+  const supabase = createServiceSupabase();
+  const [{ data, error }, spaces] = await Promise.all([
+    supabase
+      .from("pages")
+      .select("id, title, icon, space_id")
+      .eq("is_archived", false),
+    getSpaces(),
+  ]);
+  if (error) throw new Error(`getAllPages failed: ${error.message}`);
+  const slugById = new Map(spaces.map((s) => [s.id, s.slug]));
+  return ((data ?? []) as Pick<Page, "id" | "title" | "icon" | "space_id">[])
+    .map((p) => ({
+      id: p.id,
+      title: p.title,
+      icon: p.icon,
+      spaceSlug: slugById.get(p.space_id) ?? "",
+    }))
+    .filter((p) => p.spaceSlug)
+    .sort((a, b) => a.title.localeCompare(b.title));
 }
 
 /** Favorite pages across all spaces (not archived), ordered by title. */

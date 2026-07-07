@@ -23,7 +23,7 @@ import {
   setPageIconAction,
   toggleFavoriteAction,
 } from "@/app/actions/pages";
-import IconPicker from "@/components/page-actions/IconPicker";
+import IconPickerOverlay from "@/components/page-actions/IconPickerOverlay";
 import { PageIcon } from "@/lib/icons";
 
 /** The subset of space fields the menu needs (for "Move to space"). */
@@ -254,29 +254,14 @@ export default function PageActionsMenu({
     });
   };
 
-  // The icon picker is wider/taller than a typical trigger row (sidebar rows
-  // especially), so instead of anchoring it to the trigger like the rest of
-  // this menu, float it as a centered overlay above everything — sidebar and
-  // main page alike — rather than fitting it into whatever cramped space is
-  // beside the trigger.
   if (editMode === "icon") {
     return (
-      <div
-        className="fixed inset-0 z-40 flex items-center justify-center bg-black/20"
-        onClick={() => setEditMode(null)}
-      >
-        <div
-          className="w-80 rounded-md border border-neutral-200 bg-white p-2 text-sm shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <IconPicker
-            value={page.icon}
-            onSelect={handleSelectIcon}
-            onClear={() => handleSelectIcon(null)}
-            onClose={() => setEditMode(null)}
-          />
-        </div>
-      </div>
+      <IconPickerOverlay
+        value={page.icon}
+        onSelect={handleSelectIcon}
+        onClear={() => handleSelectIcon(null)}
+        onClose={() => setEditMode(null)}
+      />
     );
   }
 

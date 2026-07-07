@@ -1,14 +1,18 @@
 import { notFound } from "next/navigation";
+import Backlinks from "@/components/backlinks/Backlinks";
 import Editor from "@/components/editor/Editor";
 import TitleInput from "@/components/editor/TitleInput";
 import AttachmentsPanel from "@/components/files/AttachmentsPanel";
+import PageCover from "@/components/page-cover/PageCover";
+import PageCoverControl from "@/components/page-cover/PageCoverControl";
+import PageIconControl from "@/components/page-cover/PageIconControl";
 import PageMetaBar from "@/components/page-meta/PageMetaBar";
 import ContentsPanel from "@/components/page-nav/ContentsPanel";
 import SubPagesList from "@/components/page-nav/SubPagesList";
 import TabSync from "@/components/tabs/TabSync";
 import { getBlocks } from "@/lib/db/blocks";
+import { getSignedUrl } from "@/lib/db/files";
 import { getAncestors, getChildren, getPage, getSpaces } from "@/lib/db/pages";
-import { PageIcon } from "@/lib/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -21,11 +25,12 @@ export default async function PageView({
   const page = await getPage(pageId);
   if (!page || page.is_archived) notFound();
 
-  const [blocks, spaces, ancestors, children] = await Promise.all([
+  const [blocks, spaces, ancestors, children, coverUrl] = await Promise.all([
     getBlocks(pageId),
     getSpaces(),
     getAncestors(pageId),
     getChildren(pageId),
+    page.cover_url ? getSignedUrl(page.cover_url).catch(() => null) : null,
   ]);
   const parent = ancestors.length > 0 ? ancestors[ancestors.length - 1] : null;
 
@@ -38,17 +43,29 @@ export default async function PageView({
         spaces={spaces}
         ancestors={ancestors}
       />
+      {coverUrl && (
+        <PageCover
+          pageId={page.id}
+          coverUrl={coverUrl}
+          coverPosition={page.cover_position}
+        />
+      )}
       <div className="mx-auto max-w-3xl px-6 py-12">
-        <header className="mb-8 flex items-start gap-3">
-          {page.icon && (
-            <span className="mt-1 leading-[1.15]">
-              <PageIcon icon={page.icon} size={36} />
-            </span>
+        <header className="mb-8">
+          {(!page.icon || !page.cover_url) && (
+            <div className="mb-1 flex items-center gap-1">
+              {!page.icon && <PageIconControl pageId={page.id} icon={null} />}
+              {!page.cover_url && <PageCoverControl pageId={page.id} />}
+            </div>
           )}
-          <TitleInput pageId={page.id} initialTitle={page.title} />
+          <div className="flex items-start gap-3">
+            {page.icon && <PageIconControl pageId={page.id} icon={page.icon} />}
+            <TitleInput pageId={page.id} initialTitle={page.title} />
+          </div>
         </header>
         <Editor pageId={page.id} initialBlocks={blocks} breadcrumb={page.title} />
         <SubPagesList pages={children} spaceSlug={spaceSlug} />
+        <Backlinks pageId={page.id} />
         <div className="mt-12">
           <AttachmentsPanel pageId={page.id} />
         </div>

@@ -60,6 +60,21 @@ export async function listFilesForPage(pageId: string): Promise<FileMeta[]> {
   return (data ?? []) as FileMeta[];
 }
 
+/**
+ * Best-effort removal of a file's storage object + row by storage path, used
+ * to clean up a replaced/removed page cover. Never throws — callers treat
+ * this as cleanup, not a critical-path operation.
+ */
+export async function deleteFileByStoragePath(storagePath: string): Promise<void> {
+  const supabase = createServiceSupabase();
+  try {
+    await supabase.storage.from(ATTACHMENTS_BUCKET).remove([storagePath]);
+    await supabase.from("files").delete().eq("storage_path", storagePath);
+  } catch {
+    // Cleanup only — an orphaned object/row here is harmless.
+  }
+}
+
 /** Creates a signed URL for a file in the 'attachments' bucket. */
 export async function getSignedUrl(
   storagePath: string,
