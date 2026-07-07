@@ -23,6 +23,7 @@ import { blocksFromDoc, docFromBlocks } from "./blockSync";
 import { Autocorrect } from "./extensions/autocorrect";
 import { BlockId } from "./extensions/block-id";
 import { Callout } from "./extensions/callout";
+import { Comment } from "./extensions/comment";
 import { Link } from "./extensions/link";
 import { MoveBlock } from "./extensions/move-block";
 import { PageMention } from "./extensions/page-mention";
@@ -31,6 +32,7 @@ import { Toggle, ToggleContent, ToggleSummary } from "./extensions/toggle";
 import SlashMenu from "./SlashMenu";
 import MentionMenu from "./MentionMenu";
 import LinkEditor from "./LinkEditor";
+import CommentComposer from "./CommentComposer";
 import AIToolsMenu from "./AIToolsMenu";
 import AIProposalCard from "./AIProposalCard";
 import "./editor.css";
@@ -129,6 +131,7 @@ export default function Editor({
         },
       }),
       Callout,
+      Comment,
       Toggle,
       ToggleSummary,
       ToggleContent,
@@ -224,6 +227,7 @@ export default function Editor({
             <SlashMenu editor={editor} breadcrumb={breadcrumb} />
             <MentionMenu editor={editor} pageId={pageId} />
             <LinkEditor editor={editor} />
+            <CommentComposer editor={editor} pageId={pageId} />
             <AIProposalCard editor={editor} />
           </>
         )}
