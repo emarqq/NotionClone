@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { replacePageBlocks, type BlockInput } from "@/lib/db/blocks";
 import { renamePage } from "@/lib/db/pages";
 import { reconcilePageLinks } from "@/lib/db/links";
+import { reconcilePageComments } from "@/lib/db/comments";
 import { ingestPage } from "@/lib/rag/ingest";
 
 /** Re-ingests a page after its content changes; failures never break the caller. */
@@ -25,6 +26,15 @@ function scheduleLinkSync(pageId: string): void {
   );
 }
 
+/** Re-syncs a page's comment-thread anchors after its content changes; never breaks the caller. */
+function scheduleCommentSync(pageId: string): void {
+  after(() =>
+    reconcilePageComments(pageId).catch((err) =>
+      console.error(`scheduleCommentSync failed for page ${pageId}:`, err)
+    )
+  );
+}
+
 /** Persists the full ordered block set of a page (reconciliation upsert+delete). */
 export async function saveBlocksAction(
   pageId: string,
@@ -34,6 +44,7 @@ export async function saveBlocksAction(
     await replacePageBlocks(pageId, blocks);
     scheduleIngest(pageId);
     scheduleLinkSync(pageId);
+    scheduleCommentSync(pageId);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

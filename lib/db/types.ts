@@ -79,6 +79,35 @@ export interface Link {
   target_page_id: string;
 }
 
+/** A comment thread anchored to a text range (via a ProseMirror `comment` mark). */
+export interface CommentThread {
+  id: string;
+  page_id: string;
+  /** Denormalized anchor block; kept fresh by reconcilePageComments. */
+  block_id: string | null;
+  /** Snapshot of the commented text at creation. */
+  anchor_text: string | null;
+  resolved: boolean;
+  resolved_at: string | null;
+  /** True when the anchor mark is no longer present in the page's blocks. */
+  orphaned: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A single message (root or reply) within a comment thread. */
+export interface Comment {
+  id: string;
+  thread_id: string;
+  author: string | null;
+  body: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A thread with its messages nested, for rendering the panel/popover. */
+export type CommentThreadWithMessages = CommentThread & { comments: Comment[] };
+
 export interface FileMeta {
   id: string;
   space_id: string;
