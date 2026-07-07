@@ -18,6 +18,10 @@ export interface FrontmatterData {
   /** Durable secondary handle: `[pageId]`. */
   aliases?: string[];
   archived?: boolean;
+  /** True for read-only reference docs brought in by the document importer (lib/import/). */
+  imported?: boolean;
+  /** Absolute (or upload-relative) path the imported doc was read from. */
+  sourcePath?: string;
 }
 
 /** Build a complete `.md` file string (`---` YAML `---` + body). Key order follows `data`. */

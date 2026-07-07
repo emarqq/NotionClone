@@ -11,7 +11,7 @@ const EXPORT_SUBDIR = "Notion";
 export const ARCHIVE_DIR = "Archive";
 
 /** Expand a leading `~` (dotenv's convention) so EXPORT_VAULT_DIR can be `~/…`. */
-function expandHome(p: string): string {
+export function expandHome(p: string): string {
   if (p === "~") return os.homedir();
   if (p.startsWith("~/") || p.startsWith("~\\")) return path.join(os.homedir(), p.slice(2));
   return p;
