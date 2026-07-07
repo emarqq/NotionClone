@@ -33,6 +33,7 @@ import SlashMenu from "./SlashMenu";
 import MentionMenu from "./MentionMenu";
 import LinkEditor from "./LinkEditor";
 import CommentComposer from "./CommentComposer";
+import CommentGutter from "./CommentGutter";
 import CommentThreadPopover from "./CommentThreadPopover";
 import { useCommentStore } from "./commentStore";
 import CommentsPanel from "@/components/comments/CommentsPanel";
@@ -243,6 +244,7 @@ export default function Editor({
             <MentionMenu editor={editor} pageId={pageId} />
             <LinkEditor editor={editor} />
             <CommentComposer editor={editor} pageId={pageId} />
+            <CommentGutter editor={editor} />
             <CommentThreadPopover editor={editor} pageId={pageId} />
             <CommentsPanel editor={editor} pageId={pageId} />
             <AIProposalCard editor={editor} />
