@@ -52,6 +52,8 @@ export default function AiPanel({ spaces }: AiPanelProps) {
     (s) => s.setActiveConversationId
   );
   const setOpen = useAiPanelStore((s) => s.setOpen);
+  const graphExpand = useAiPanelStore((s) => s.graphExpand);
+  const setGraphExpand = useAiPanelStore((s) => s.setGraphExpand);
 
   const [selectedSpaceId, setSelectedSpaceId] = useState<string>("");
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -151,7 +153,7 @@ export default function AiPanel({ spaces }: AiPanelProps) {
     const text = input;
     if (!text.trim() || isStreaming) return;
     setInput("");
-    send(text, activeConversationId, selectedSpaceId || null);
+    send(text, activeConversationId, selectedSpaceId || null, graphExpand);
   };
 
   return (
@@ -238,7 +240,7 @@ export default function AiPanel({ spaces }: AiPanelProps) {
         </button>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5 border-b border-neutral-200 px-2 py-1.5 dark:border-neutral-800">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-neutral-200 px-2 py-1.5 dark:border-neutral-800">
         <span className="text-[11px] text-neutral-400">Search in</span>
         <select
           value={selectedSpaceId}
@@ -252,6 +254,19 @@ export default function AiPanel({ spaces }: AiPanelProps) {
             </option>
           ))}
         </select>
+        <div className="flex-1" />
+        <label
+          className="flex cursor-pointer items-center gap-1 text-[11px] text-neutral-500 dark:text-neutral-400"
+          title="Also pull in chunks from pages linked to/from the top matches (graph RAG)"
+        >
+          <input
+            type="checkbox"
+            checked={graphExpand}
+            onChange={(e) => setGraphExpand(e.target.checked)}
+            className="h-3 w-3 accent-primary"
+          />
+          Connect linked notes
+        </label>
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-2.5 py-3">

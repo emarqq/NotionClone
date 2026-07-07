@@ -11,6 +11,8 @@ interface AiPanelState {
   open: boolean;
   activeConversationId: string | null;
   width: number;
+  /** Graph-RAG: expand retrieval to linked pages ("Connect linked notes"). */
+  graphExpand: boolean;
   /** True once the persisted state has been rehydrated on the client. */
   hasHydrated: boolean;
 
@@ -18,6 +20,7 @@ interface AiPanelState {
   setOpen: (open: boolean) => void;
   setActiveConversationId: (id: string | null) => void;
   setWidth: (width: number) => void;
+  setGraphExpand: (value: boolean) => void;
   setHasHydrated: (value: boolean) => void;
 }
 
@@ -27,6 +30,7 @@ export const useAiPanelStore = create<AiPanelState>()(
       open: false,
       activeConversationId: null,
       width: DEFAULT_WIDTH,
+      graphExpand: true,
       hasHydrated: false,
 
       toggle: () => set({ open: !get().open }),
@@ -34,6 +38,7 @@ export const useAiPanelStore = create<AiPanelState>()(
       setActiveConversationId: (id) => set({ activeConversationId: id }),
       setWidth: (width) =>
         set({ width: Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width)) }),
+      setGraphExpand: (value) => set({ graphExpand: value }),
       setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
     {
@@ -47,6 +52,7 @@ export const useAiPanelStore = create<AiPanelState>()(
         open: state.open,
         activeConversationId: state.activeConversationId,
         width: state.width,
+        graphExpand: state.graphExpand,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

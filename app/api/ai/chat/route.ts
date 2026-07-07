@@ -16,6 +16,8 @@ interface ChatRequestBody {
   conversationId?: string;
   message: string;
   spaceId?: string | null;
+  /** Graph-RAG: also pull chunks from linked pages (see lib/rag/retriever). */
+  graphExpand?: boolean;
 }
 
 /** RetrievedSource plus the display metadata the panel needs to render a clickable citation. */
@@ -117,6 +119,7 @@ export async function POST(request: NextRequest) {
     });
   }
   const spaceId = body.spaceId ?? null;
+  const graphExpand = body.graphExpand ?? false;
 
   const encoder = new TextEncoder();
 
@@ -145,7 +148,12 @@ export async function POST(request: NextRequest) {
 
         await addMessage(conversationId, "user", message);
 
-        const sources = await retrieve(message, { spaceId, k: 8 });
+        const sources = await retrieve(message, {
+          spaceId,
+          k: 8,
+          expand: graphExpand,
+          hops: 1,
+        });
         const enriched = await enrichSources(sources);
 
         send({ type: "meta", conversationId, sources: enriched });
