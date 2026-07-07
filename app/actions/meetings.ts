@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createPage, setPageIcon } from "@/lib/db/pages";
 import { replacePageBlocks, type BlockInput } from "@/lib/db/blocks";
 import { firstPosition, positionAfter } from "@/lib/positions";
+import { ingestPage } from "@/lib/rag/ingest";
 import type { BlockType, Json, Page } from "@/lib/db/types";
 
 /*
@@ -105,6 +107,13 @@ export async function createMeetingNoteAction(
   push("paragraph", (id) => paragraph(id));
 
   await replacePageBlocks(page.id, blocks);
+  // Seeded template content bypasses the editor's autosave path, so it needs
+  // its own re-ingest — otherwise it's invisible to RAG until the user edits.
+  after(() =>
+    ingestPage(page.id).catch((err) =>
+      console.error(`createMeetingNoteAction re-ingest failed for page ${page.id}:`, err)
+    )
+  );
 
   revalidatePath("/", "layout");
   revalidatePath(`/${spaceSlug}`);

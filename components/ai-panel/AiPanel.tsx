@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   History,
   Send,
@@ -54,6 +54,8 @@ export default function AiPanel({ spaces }: AiPanelProps) {
   const setOpen = useAiPanelStore((s) => s.setOpen);
   const graphExpand = useAiPanelStore((s) => s.graphExpand);
   const setGraphExpand = useAiPanelStore((s) => s.setGraphExpand);
+  const pendingQuery = useAiPanelStore((s) => s.pendingQuery);
+  const setPendingQuery = useAiPanelStore((s) => s.setPendingQuery);
 
   const [selectedSpaceId, setSelectedSpaceId] = useState<string>("");
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -66,8 +68,20 @@ export default function AiPanel({ spaces }: AiPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // A conversation id arriving from an active send() is already backed by
+  // this component's live message state — mark it loaded immediately so the
+  // restore-from-DB effect below (meant for browser-refresh only) doesn't
+  // race a still-streaming answer and clobber it with a stale DB snapshot.
+  const handleConversationId = useCallback(
+    (id: string) => {
+      setActiveConversationId(id);
+      setLoadedConversationId(id);
+    },
+    [setActiveConversationId]
+  );
+
   const { messages, isStreaming, error, send, abort, load, clear } =
-    useAiChat(setActiveConversationId);
+    useAiChat(handleConversationId);
 
   useEffect(() => {
     rehydrateAiPanelStore();
@@ -108,6 +122,23 @@ export default function AiPanel({ spaces }: AiPanelProps) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: "end" });
   }, [messages]);
+
+  // A query queued by an entry point outside the panel (e.g. the Home "Ask
+  // your brain" bar): send it through the normal path and clear the signal.
+  useEffect(() => {
+    if (!open || !pendingQuery) return;
+    const text = pendingQuery;
+    setPendingQuery(null);
+    send(text, activeConversationId, selectedSpaceId || null, graphExpand);
+  }, [
+    open,
+    pendingQuery,
+    activeConversationId,
+    selectedSpaceId,
+    graphExpand,
+    send,
+    setPendingQuery,
+  ]);
 
   if (!open) return null;
 

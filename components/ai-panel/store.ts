@@ -15,6 +15,11 @@ interface AiPanelState {
   graphExpand: boolean;
   /** True once the persisted state has been rehydrated on the client. */
   hasHydrated: boolean;
+  /**
+   * One-shot query text set by an entry point outside the panel (e.g. the
+   * Home "Ask your brain" bar). AiPanel sends it and clears it on mount/open.
+   */
+  pendingQuery: string | null;
 
   toggle: () => void;
   setOpen: (open: boolean) => void;
@@ -22,6 +27,7 @@ interface AiPanelState {
   setWidth: (width: number) => void;
   setGraphExpand: (value: boolean) => void;
   setHasHydrated: (value: boolean) => void;
+  setPendingQuery: (value: string | null) => void;
 }
 
 export const useAiPanelStore = create<AiPanelState>()(
@@ -32,6 +38,7 @@ export const useAiPanelStore = create<AiPanelState>()(
       width: DEFAULT_WIDTH,
       graphExpand: true,
       hasHydrated: false,
+      pendingQuery: null,
 
       toggle: () => set({ open: !get().open }),
       setOpen: (open) => set({ open }),
@@ -40,6 +47,7 @@ export const useAiPanelStore = create<AiPanelState>()(
         set({ width: Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width)) }),
       setGraphExpand: (value) => set({ graphExpand: value }),
       setHasHydrated: (value) => set({ hasHydrated: value }),
+      setPendingQuery: (value) => set({ pendingQuery: value }),
     }),
     {
       name: "kh-ai-panel",

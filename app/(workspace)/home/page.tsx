@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getFavorites, getRecents, getSpaces } from "@/lib/db/pages";
 import type { Page, Space } from "@/lib/db/types";
 import { DefaultPageIcon, PageIcon } from "@/lib/icons";
+import AskBrainBar from "@/components/ai-panel/AskBrainBar";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +95,10 @@ export default async function HomePage() {
       <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
         {greetingForNow()} — pick up where you left off.
       </p>
+
+      <div className="mt-6">
+        <AskBrainBar />
+      </div>
 
       <section className="mt-10">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">

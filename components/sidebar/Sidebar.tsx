@@ -7,6 +7,7 @@ import {
   getSpaces,
 } from "@/lib/db/pages";
 import SettingsModal from "@/components/settings/SettingsModal";
+import AskAiLink from "./AskAiLink";
 import CollapsibleSection from "./CollapsibleSection";
 import FlatPageRow from "./FlatPageRow";
 import NewSpaceButton from "./NewSpaceButton";
@@ -63,6 +64,7 @@ export default async function Sidebar() {
       <nav className="flex-1 space-y-5 px-2 pb-8 pt-2">
         <section>
           <SidebarLink href="/home" label="Home" icon={<Home size={14} />} />
+          <AskAiLink />
         </section>
         {favorites.length > 0 && (
           <CollapsibleSection
