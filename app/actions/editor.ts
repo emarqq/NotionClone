@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { replacePageBlocks, type BlockInput } from "@/lib/db/blocks";
 import { renamePage } from "@/lib/db/pages";
+import { reconcilePageLinks } from "@/lib/db/links";
 import { ingestPage } from "@/lib/rag/ingest";
 
 /** Re-ingests a page after its content changes; failures never break the caller. */
@@ -11,6 +12,15 @@ function scheduleIngest(pageId: string): void {
   after(() =>
     ingestPage(pageId).catch((err) =>
       console.error(`scheduleIngest failed for page ${pageId}:`, err)
+    )
+  );
+}
+
+/** Re-derives a page's outgoing backlinks after its content changes; never breaks the caller. */
+function scheduleLinkSync(pageId: string): void {
+  after(() =>
+    reconcilePageLinks(pageId).catch((err) =>
+      console.error(`scheduleLinkSync failed for page ${pageId}:`, err)
     )
   );
 }
@@ -23,6 +33,7 @@ export async function saveBlocksAction(
   try {
     await replacePageBlocks(pageId, blocks);
     scheduleIngest(pageId);
+    scheduleLinkSync(pageId);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

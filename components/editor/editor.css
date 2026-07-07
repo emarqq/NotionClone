@@ -243,6 +243,37 @@
   display: none;
 }
 
+/* Inline hyperlink (Link mark) */
+.editor-prose .editor-link {
+  color: var(--color-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+}
+.editor-prose .editor-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* Page mention (inline atom chip) */
+.editor-prose .page-mention {
+  color: var(--color-secondary);
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 0.25rem;
+  padding: 0 0.1rem;
+  cursor: pointer;
+  white-space: nowrap;
+  box-decoration-break: clone;
+}
+.editor-prose .page-mention::before {
+  content: "@";
+  opacity: 0.55;
+}
+.editor-prose .page-mention:hover {
+  background: color-mix(in srgb, var(--color-secondary) 12%, transparent);
+}
+
 /* Selection / cursor niceties */
 .editor-prose .ProseMirror-gapcursor:after {
   border-top: 1px solid var(--foreground);

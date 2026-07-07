@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
@@ -22,10 +23,14 @@ import { blocksFromDoc, docFromBlocks } from "./blockSync";
 import { Autocorrect } from "./extensions/autocorrect";
 import { BlockId } from "./extensions/block-id";
 import { Callout } from "./extensions/callout";
+import { Link } from "./extensions/link";
 import { MoveBlock } from "./extensions/move-block";
+import { PageMention } from "./extensions/page-mention";
 import { SelectAll } from "./extensions/select-all";
 import { Toggle, ToggleContent, ToggleSummary } from "./extensions/toggle";
 import SlashMenu from "./SlashMenu";
+import MentionMenu from "./MentionMenu";
+import LinkEditor from "./LinkEditor";
 import AIToolsMenu from "./AIToolsMenu";
 import AIProposalCard from "./AIProposalCard";
 import "./editor.css";
@@ -44,6 +49,7 @@ export default function Editor({
   breadcrumb?: string;
 }) {
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const router = useRouter();
 
   const docRef = useRef<PMNode | null>(null);
   const dirtyRef = useRef(false);
@@ -112,10 +118,21 @@ export default function Editor({
       Image,
       Underline,
       Highlight.configure({ multicolor: true }),
+      Link.configure({
+        openOnClick: true,
+        autolink: true,
+        linkOnPaste: true,
+        HTMLAttributes: {
+          target: "_blank",
+          rel: "noopener noreferrer",
+          class: "editor-link",
+        },
+      }),
       Callout,
       Toggle,
       ToggleSummary,
       ToggleContent,
+      PageMention,
       BlockId,
       MoveBlock,
       SelectAll,
@@ -132,6 +149,22 @@ export default function Editor({
       attributes: {
         class: "editor-prose focus:outline-none",
         "data-page-id": pageId,
+      },
+      // Client-side navigation when a page mention is clicked (the atom's
+      // href is a real /slug/id path, so preventDefault the native nav).
+      handleClickOn: (_view, _pos, node, _nodePos, event) => {
+        if (node.type.name === "pageMention") {
+          const { spaceSlug, pageId: targetId } = node.attrs as {
+            spaceSlug: string | null;
+            pageId: string | null;
+          };
+          if (spaceSlug && targetId) {
+            event.preventDefault();
+            router.push(`/${spaceSlug}/${targetId}`);
+            return true;
+          }
+        }
+        return false;
       },
       handlePaste: (view, event) => {
         const files = Array.from(event.clipboardData?.files ?? []).filter((f) =>
@@ -189,6 +222,8 @@ export default function Editor({
         {editor && (
           <>
             <SlashMenu editor={editor} breadcrumb={breadcrumb} />
+            <MentionMenu editor={editor} pageId={pageId} />
+            <LinkEditor editor={editor} />
             <AIProposalCard editor={editor} />
           </>
         )}

@@ -13,6 +13,7 @@ import {
   Code,
   Eraser,
   Italic,
+  Link2,
   ListTree,
   MessageSquare,
   Sparkles,
@@ -24,6 +25,7 @@ import {
 
 import { useAIProposalStore } from "./aiProposalStore";
 import type { AITool } from "./aiProposalStore";
+import { useLinkEditorStore } from "./linkEditorStore";
 import { BLOCK_ITEMS, getCurrentBlockItem } from "./blockItems";
 
 interface ToolButton {
@@ -244,6 +246,15 @@ export default function AIToolsMenu({
                   <Icon size={14} className="shrink-0" />
                 </button>
               ))}
+              <button
+                type="button"
+                title="Link (⌘K)"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => useLinkEditorStore.getState().open(editor)}
+                className={markButtonClass(editor.isActive("link"))}
+              >
+                <Link2 size={14} className="shrink-0" />
+              </button>
               <button
                 type="button"
                 title="Clear formatting"
