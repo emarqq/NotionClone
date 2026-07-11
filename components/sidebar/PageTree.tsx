@@ -8,6 +8,10 @@ import type { MenuSpace } from "@/components/page-actions/PageActionsMenu";
 import { canDrop, dragState } from "./dnd";
 import PageRow from "./PageRow";
 
+/** Per-nesting-level indent unit (px). Compounds via DOM nesting of the
+ * children wrapper div — every level gets the same step. */
+const INDENT_STEP = 12;
+
 export interface PageTreeProps {
   nodes: PageTreeNode[];
   depth: number;
@@ -47,14 +51,12 @@ export default function PageTree(props: PageTreeProps) {
         spaceId={spaceId}
         parentId={parentId}
         afterId={null}
-        depth={depth}
         onExpand={onExpand}
       />
       {nodes.map((node) => (
         <div key={node.id}>
           <PageRow
             node={node}
-            depth={depth}
             spaceId={spaceId}
             spaceSlug={spaceSlug}
             spaces={spaces}
@@ -66,7 +68,7 @@ export default function PageTree(props: PageTreeProps) {
           {expandedIds.has(node.id) && node.children.length > 0 && (
             <div
               className="border-l border-neutral-200/70 dark:border-neutral-800/70"
-              style={{ marginLeft: depth * 12 + 12 }}
+              style={{ marginLeft: INDENT_STEP }}
             >
               <PageTree
                 nodes={node.children}
@@ -86,7 +88,6 @@ export default function PageTree(props: PageTreeProps) {
             spaceId={spaceId}
             parentId={parentId}
             afterId={node.id}
-            depth={depth}
             onExpand={onExpand}
           />
         </div>
@@ -103,13 +104,11 @@ function DropZone({
   spaceId,
   parentId,
   afterId,
-  depth,
   onExpand,
 }: {
   spaceId: string;
   parentId: string | null;
   afterId: string | null;
-  depth: number;
   onExpand: (id: string) => void;
 }) {
   const [over, setOver] = useState(false);
@@ -120,7 +119,7 @@ function DropZone({
 
   return (
     <div
-      style={{ marginLeft: depth * 12 + 8 }}
+      style={{ marginLeft: 4 }}
       className={clsx(
         "relative z-10 -my-0.5 h-1 rounded-full",
         over && "bg-secondary/80"

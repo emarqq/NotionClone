@@ -6,7 +6,6 @@ import {
   getRecents,
   getSpaces,
 } from "@/lib/db/pages";
-import SettingsModal from "@/components/settings/SettingsModal";
 import AskAiLink from "./AskAiLink";
 import CollapsibleSection from "./CollapsibleSection";
 import FlatPageRow from "./FlatPageRow";
@@ -56,7 +55,7 @@ export default async function Sidebar() {
 
   return (
     <aside className="flex h-full w-full min-w-0 flex-col overflow-y-auto border-r border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950">
-      <div className="px-4 pb-2 pt-4">
+      <div className="app-sidebar-header px-4 pb-2 pt-4">
         <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
           Notion Clone
         </p>
@@ -102,7 +101,6 @@ export default async function Sidebar() {
         ))}
         <section>
           <NewSpaceButton />
-          <SettingsModal />
         </section>
       </nav>
     </aside>

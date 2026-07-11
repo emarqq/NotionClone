@@ -21,10 +21,12 @@ import type { Block } from "@/lib/db/types";
 import { saveBlocksAction } from "@/app/actions/editor";
 import { blocksFromDoc, docFromBlocks } from "./blockSync";
 import { Autocorrect } from "./extensions/autocorrect";
+import { AutoCapitalize } from "./extensions/auto-capitalize";
 import { BlockId } from "./extensions/block-id";
 import { Callout } from "./extensions/callout";
 import { Comment } from "./extensions/comment";
 import { Link } from "./extensions/link";
+import { ListExit } from "./extensions/list-exit";
 import { MoveBlock } from "./extensions/move-block";
 import { PageMention } from "./extensions/page-mention";
 import { SelectAll } from "./extensions/select-all";
@@ -141,9 +143,11 @@ export default function Editor({
       ToggleContent,
       PageMention,
       BlockId,
+      ListExit,
       MoveBlock,
       SelectAll,
       Autocorrect,
+      AutoCapitalize,
       Placeholder.configure({
         placeholder: ({ node }) =>
           node.type.name === "toggleSummary"

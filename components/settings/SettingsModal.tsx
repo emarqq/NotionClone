@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Settings } from "lucide-react";
 import { useThemeStore, type ThemeMode } from "@/components/theme/store";
+import { useEditorPrefsStore } from "@/components/editor/editorPrefsStore";
 import ImportDocsSection from "@/components/settings/ImportDocsSection";
 
 const MODES: { value: ThemeMode; label: string }[] = [
@@ -20,6 +21,10 @@ export default function SettingsModal() {
   const setMode = useThemeStore((s) => s.setMode);
   const setPrimaryColor = useThemeStore((s) => s.setPrimaryColor);
   const setSecondaryColor = useThemeStore((s) => s.setSecondaryColor);
+  const autoCapitalize = useEditorPrefsStore((s) => s.autoCapitalize);
+  const autocorrect = useEditorPrefsStore((s) => s.autocorrect);
+  const setAutoCapitalize = useEditorPrefsStore((s) => s.setAutoCapitalize);
+  const setAutocorrect = useEditorPrefsStore((s) => s.setAutocorrect);
 
   return (
     <>
@@ -28,12 +33,9 @@ export default function SettingsModal() {
         title="Settings"
         aria-label="Settings"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wide text-neutral-400 hover:bg-neutral-200/60 hover:text-neutral-700 dark:text-neutral-500 dark:hover:bg-neutral-800/70 dark:hover:text-neutral-200"
+        className="absolute bottom-3 right-3 z-30 flex size-9 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-500 shadow-sm transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
       >
-        <span className="flex w-4 shrink-0 items-center justify-center">
-          <Settings size={14} />
-        </span>
-        Settings
+        <Settings size={16} />
       </button>
       {open && (
         <div
@@ -111,6 +113,32 @@ export default function SettingsModal() {
                 />
               </div>
             </div>
+
+            <p className="mb-2 mt-1 font-medium text-neutral-800 dark:text-neutral-200">
+              Editor
+            </p>
+            <label className="mb-2 flex cursor-pointer items-center justify-between gap-2">
+              <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                Auto-capitalize sentences
+              </span>
+              <input
+                type="checkbox"
+                checked={autoCapitalize}
+                onChange={(e) => setAutoCapitalize(e.target.checked)}
+                className="size-4 cursor-pointer accent-primary"
+              />
+            </label>
+            <label className="mb-4 flex cursor-pointer items-center justify-between gap-2">
+              <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                Autocorrect spelling
+              </span>
+              <input
+                type="checkbox"
+                checked={autocorrect}
+                onChange={(e) => setAutocorrect(e.target.checked)}
+                className="size-4 cursor-pointer accent-primary"
+              />
+            </label>
 
             <ImportDocsSection />
 

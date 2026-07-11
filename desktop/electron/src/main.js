@@ -331,6 +331,7 @@ function createMainWindow() {
     minWidth: 940,
     minHeight: 600,
     title: "Notion Clone",
+    titleBarStyle: "hiddenInset",
     icon: path.join(DESKTOP_DIR, "icon.icns"),
     show: false,
     webPreferences: { contextIsolation: true },

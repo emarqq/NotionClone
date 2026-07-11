@@ -15,6 +15,8 @@ import { useNewTab, type SpaceOption } from "@/components/tabs/useNewTab";
 import AiPanel from "@/components/ai-panel/AiPanel";
 import { rehydrateAiPanelStore, useAiPanelStore } from "@/components/ai-panel/store";
 import ResizeHandle from "@/components/app-shell/ResizeHandle";
+import SettingsModal from "@/components/settings/SettingsModal";
+import { rehydrateEditorPrefsStore } from "@/components/editor/editorPrefsStore";
 
 export interface AppShellProps {
   sidebar: React.ReactNode;
@@ -50,6 +52,13 @@ export default function AppShell({ sidebar, spaces, children }: AppShellProps) {
   useEffect(() => {
     rehydrateTabsStore();
     rehydrateAiPanelStore();
+    rehydrateEditorPrefsStore();
+    // In the Electron desktop shell (macOS "hiddenInset" titlebar) the traffic
+    // lights float over the top-left of the window — i.e. over the sidebar.
+    // Tag <html> so CSS can inset the sidebar top clear of them. No-op on web.
+    if (typeof navigator !== "undefined" && /Electron/i.test(navigator.userAgent)) {
+      document.documentElement.classList.add("is-electron");
+    }
   }, []);
 
   // Global keyboard shortcuts:
@@ -141,11 +150,14 @@ export default function AppShell({ sidebar, spaces, children }: AppShellProps) {
           />
         )}
       </div>
-      <div className="flex h-full min-w-0 flex-1 flex-col">
+      <div className="relative flex h-full min-w-0 flex-1 flex-col">
         <TabBar spaces={spaces} />
         <main id={SCROLL_CONTAINER_ID} className="flex-1 overflow-y-auto">
           {children}
         </main>
+        {/* Floating settings gear, pinned bottom-right of the content column
+            (i.e. left of the AI panel, clear of the left comment gutter). */}
+        <SettingsModal />
       </div>
       <div
         className={clsx(

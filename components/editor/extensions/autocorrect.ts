@@ -2,6 +2,8 @@ import { Extension } from "@tiptap/core";
 import type { Editor } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
 
+import { useEditorPrefsStore } from "../editorPrefsStore";
+
 // A word just got "completed" when the character before the cursor is one
 // of these — matches typing a space/newline/punctuation right after a word.
 const BOUNDARY_RE = /[\s.,!?;:)\]}"']/;
@@ -34,6 +36,7 @@ async function fetchSuggestion(
 }
 
 function maybeAutocorrect(editor: Editor, transaction: Transaction, abortSignal: AbortSignal) {
+  if (!useEditorPrefsStore.getState().autocorrect) return;
   if (transaction.getMeta("autocorrect")) return;
   if (!transaction.docChanged) return;
 

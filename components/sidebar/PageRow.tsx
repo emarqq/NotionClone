@@ -16,7 +16,6 @@ const HOVER_BTN_CLASS =
 
 export interface PageRowProps {
   node: PageTreeNode;
-  depth: number;
   spaceId: string;
   spaceSlug: string;
   spaces: MenuSpace[];
@@ -29,7 +28,6 @@ export interface PageRowProps {
 /** A single sidebar page row: link, expand chevron, hover actions, DnD handlers. */
 export default function PageRow({
   node,
-  depth,
   spaceId,
   spaceSlug,
   spaces,
@@ -75,7 +73,7 @@ export default function PageRow({
           "bg-secondary/10 ring-1 ring-inset ring-secondary dark:bg-secondary/20",
         isPending && "opacity-60"
       )}
-      style={{ paddingLeft: depth * 12 + 4 }}
+      style={{ paddingLeft: 4 }}
       draggable={!renaming}
       onDragStart={(e) => {
         dragState.current = {
