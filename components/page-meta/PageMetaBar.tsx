@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Check, Link as LinkIcon, MoreHorizontal, Star } from "lucide-react";
+import { Check, Download, Link as LinkIcon, MoreHorizontal, Star } from "lucide-react";
 import clsx from "clsx";
 import type { Page } from "@/lib/db/types";
 import {
@@ -11,6 +11,7 @@ import {
   touchLastViewedAction,
 } from "@/app/actions/pages";
 import PageActionsMenu from "@/components/page-actions/PageActionsMenu";
+import ExportMenu from "@/components/page-actions/ExportMenu";
 
 export interface PageMetaBarProps {
   page: Page;
@@ -48,6 +49,7 @@ export default function PageMetaBar({
   const [favorite, setFavorite] = useState(page.is_favorite);
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [crumbMenuOpen, setCrumbMenuOpen] = useState(false);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -205,6 +207,24 @@ export default function PageMetaBar({
         >
           <Star size={14} fill={favorite ? "currentColor" : "none"} />
         </button>
+        <div className="relative">
+          <button
+            type="button"
+            title="Export page"
+            aria-label="Export page"
+            aria-expanded={exportMenuOpen}
+            onClick={() => setExportMenuOpen((open) => !open)}
+            className={ICON_BTN_CLASS}
+          >
+            <Download size={14} />
+          </button>
+          <ExportMenu
+            open={exportMenuOpen}
+            onClose={() => setExportMenuOpen(false)}
+            pageId={page.id}
+            align="right-1"
+          />
+        </div>
         <button
           type="button"
           title={copied ? "Copied" : "Copy link"}
