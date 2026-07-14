@@ -265,8 +265,16 @@ export default function Editor({
         'insertBefore' on 'Node': ... is not a child of this node." Keeping
         it outside the div above, in its own sibling slot, means React never
         needs that node as a reconciliation anchor for the toggling elements.
+
+        The dedicated wrapper <div> matters too: the reparented placeholder
+        must not be a TOP-LEVEL host node of this component, or React's
+        deletion pass calls removeChild on it directly and crashes with
+        "Failed to execute 'removeChild'" when Editor is swapped out in place
+        (e.g. "Turn into database" re-rendering the same route via
+        router.refresh()). The wrapper stays where React put it, so deletion
+        removes the wrapper and never touches the reparented node inside.
       */}
-      {editor && <AIToolsMenu editor={editor} breadcrumb={breadcrumb} />}
+      <div>{editor && <AIToolsMenu editor={editor} breadcrumb={breadcrumb} />}</div>
     </>
   );
 }
