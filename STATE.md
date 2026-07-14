@@ -1,38 +1,45 @@
 # STATE — notion-clone
 > Rewritten each session, never appended. History lives in AIHub vault/runs/.
-> DRAFT — agent-generated 2026-07-05; Erik should verify Now/Next.
 
 ## Status
 Next.js 15 app over local Supabase (Postgres + pgvector). Block editor (Tiptap) with
-nested page tree across two spaces (School, Work), RAG assistant on a swappable
-provider (local Ollama by default). Working tree has substantial uncommitted changes
-(editor/sidebar components, page actions, a removed legacy desktop app bundle) plus an
-untracked CLAUDE.md — nothing pushed to origin/main since.
+nested page tree, RAG assistant (local Ollama), markdown export/vault mirror, document
+importer. NEW: **database pages Phase 1** on branch `feat/database-pages` — any page can
+turn into a Notion-style database (child pages = rows, 7 typed property columns, table
+view). Design doc: `~/.claude/plans/fable-database-noble-tulip.md`; architecture record:
+docs/ARCHITECTURE.md addendum 2026-07-14.
 
 ## Now / Next
-- Review and commit the pending changes (or use AIHub's new per-project cleanup button)
-  before starting new work, so history doesn't accumulate an unreviewed backlog.
-- Confirm the desktop/Notion Clone.app removal was intentional before it's committed.
+- Review + merge `feat/database-pages` (branched off `feat/markdown-export`, NOT main —
+  main is ~25 commits behind and lacks export/comments/linking).
+- Phase 2 of the database plan: side-peek row panel (AI-panel pattern; plan §Phase 2).
+- Then Phase 3 (views/filter/sort/column layout), Phase 4 board, Phase 5 calendar.
 
 ## Recent decisions
-- None recorded yet — first STATE.md for this project (just registered in AIHub).
-- 2026-07-07: **Document importer** (`lib/import/`, `POST /api/import`, Settings →
-  Import documents). Drops external docs (PDF/docx/xlsx/txt/md) in as **read-only
-  reference context** — reuses `ingestFile` for chunk/embed/dedup into a dedicated
-  "Imported" space + mirrors read-only Markdown to `<vault>/Imported`. No migration
-  (`source_type='file'`, `page_id=null`). Editable-page conversion deferred (seam in
-  `importDoc()`). On branch `feat/markdown-export`.
+- 2026-07-13: database schema fork resolved with Erik — **rows are pages** (Option A);
+  dedicated `db_property_options` table (tags/page_tags left untouched — they're inert);
+  zero new dependencies; non-destructive turn-into both ways (idempotent view seeding).
+- 2026-07-14: "unset property value" = DELETE the value row, never write null
+  (`value jsonb not null` + PostgREST null mapping).
+- 2026-07-14: Editor's BubbleMenu placeholder needs a dedicated wrapper div — tippy
+  reparents it, and top-level placement crashes React's deletion pass on in-place
+  editor↔database swaps (see Editor.tsx comment).
 
 ## Failed approaches
-None recorded — no run history in AIHub vault yet.
+- `tippyOptions.appendTo: () => document.body` does NOT fix the BubbleMenu unmount
+  crash — the reparented node's fiber parent is what matters, not the tippy root's home.
 
 ## Blockers / open questions
-- None identified beyond the uncommitted working tree above.
+- Electron shell itself not eyeballed (production `:3777` build verified via browser;
+  Erik should ⌘R the desktop app — the new build is already serving on :3777).
+- Phase-1 scope cuts listed in the ARCHITECTURE addendum (no peek/views/option-manage UI).
 
 ## Last verified
-2026-07-07: document importer verified headlessly end-to-end (tsx + react-server) against
-the live local Supabase + Ollama — 5 real docs from ~/OS/brain-docs imported → 26 chunks
-in the Imported space, all 26 embedded (768-dim), XOR-ok (source_type='file', page_id
-null); Markdown mirror written with `imported: true`/`sourcePath` frontmatter; retrieval
-scoped to the Imported space returned the imported chunks; re-import deduped (5/5
-unchanged, 0 new chunks). Test data cleaned up afterward (no real-vault/DB residue).
+2026-07-14: database pages Phase 1 verified end-to-end on web :3000 AND production :3777
+build — clean migration replay (7 migrations + seed) on a disposable supabase/postgres
+scratch container, `supabase migration up` applied live with consent (62 real pages
+intact); turn-into round-trips ×3 (idempotent, 1 view row); all 7 property types
+persisted with correct jsonb shapes; duplicate copies schema not rows; row bodies
+auto-RAG-indexed with `Space > DB > Row` breadcrumb; option-delete sweep leaves 0
+dangling ids; database delete cascades everything to zero; dark mode + shortcut set
+clean; typecheck + lint pass. Test data fully removed (DB + vault).
