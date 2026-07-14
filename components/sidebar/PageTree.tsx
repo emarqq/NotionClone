@@ -65,7 +65,7 @@ export default function PageTree(props: PageTreeProps) {
             onToggle={onToggle}
             onExpand={onExpand}
           />
-          {expandedIds.has(node.id) && node.children.length > 0 && (
+          {!node.is_database && expandedIds.has(node.id) && node.children.length > 0 && (
             <div
               className="border-l border-neutral-200/70 dark:border-neutral-800/70"
               style={{ marginLeft: INDENT_STEP }}

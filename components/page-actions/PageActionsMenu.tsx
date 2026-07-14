@@ -17,6 +17,7 @@ import {
   Pencil,
   Smile,
   Star,
+  Table2,
   Trash2,
 } from "lucide-react";
 import clsx from "clsx";
@@ -29,6 +30,10 @@ import {
   setPageIconAction,
   toggleFavoriteAction,
 } from "@/app/actions/pages";
+import {
+  turnDatabaseIntoPageAction,
+  turnPageIntoDatabaseAction,
+} from "@/app/actions/databases";
 import IconPickerOverlay from "@/components/page-actions/IconPickerOverlay";
 import { PageIcon } from "@/lib/icons";
 import { pageExportUrl } from "@/lib/export/clientUrls";
@@ -49,6 +54,7 @@ export interface PageActionsMenuProps {
     title: string;
     icon: string | null;
     is_favorite: boolean;
+    is_database: boolean;
   };
   spaceSlug: string;
   spaces: MenuSpace[];
@@ -229,6 +235,22 @@ export default function PageActionsMenu({
     });
   };
 
+  const handleTurnIntoDatabase = () => {
+    onClose();
+    startTransition(async () => {
+      await turnPageIntoDatabaseAction(page.id);
+      router.refresh();
+    });
+  };
+
+  const handleTurnIntoPage = () => {
+    onClose();
+    startTransition(async () => {
+      await turnDatabaseIntoPageAction(page.id);
+      router.refresh();
+    });
+  };
+
   const handleExportPdf = () => {
     onClose();
     window.open(pageExportUrl(page.id, "pdf"), "_blank", "noopener,noreferrer");
@@ -387,6 +409,22 @@ export default function PageActionsMenu({
                   <Copy size={13} className="shrink-0" />
                   Duplicate
                 </MenuItem>
+                {page.is_database ? (
+                  <MenuItem onClick={handleTurnIntoPage}>
+                    <FileText size={13} className="shrink-0" />
+                    <span className="flex flex-col">
+                      Turn into page
+                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                        Properties are hidden, not deleted
+                      </span>
+                    </span>
+                  </MenuItem>
+                ) : (
+                  <MenuItem onClick={handleTurnIntoDatabase}>
+                    <Table2 size={13} className="shrink-0" />
+                    Turn into database
+                  </MenuItem>
+                )}
                 <MenuItem onClick={() => setEditMode("export")}>
                   <Download size={13} className="shrink-0" />
                   <span className="flex flex-1 items-center justify-between">
