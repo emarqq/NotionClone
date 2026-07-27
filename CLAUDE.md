@@ -47,6 +47,16 @@ nohup npx next start -p 3777 &       # restart
 # then reload (Cmd-R) or reopen ~/Applications/Notion Clone.app
 ```
 
+> [!WARNING]
+> **The kill-first order is not optional — never run `npm run build` while the :3777 server is live.**
+> A running `next start` holds content-hashed chunk paths from the build it booted with. Rebuilding
+> replaces `.next` underneath it, so those files vanish and the server starts throwing
+> `MODULE_NOT_FOUND: Cannot find module '.next/server/chunks/ssr/[root-of-the-server]__<hash>._.js'`
+> (see `~/Library/Logs/NotionClone.log`). **Symptom in the app: a full page load 500s, and clicking
+> into a page shows "Application error: a client-side exception has occurred."** It looks like a code
+> bug but nothing is wrong with the code — the fix is to kill :3777 and `next start` again. Happened
+> on 2026-07-27; diagnosed by comparing the server's start time against the `.next` chunk mtimes.
+
 `desktop/electron/` is a separate npm package (own package.json/lockfile) — root `npm install` does not install its deps; see `desktop/README.md`.
 
 ## Architecture
