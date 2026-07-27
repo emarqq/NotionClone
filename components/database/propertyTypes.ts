@@ -28,11 +28,3 @@ export const PROPERTY_TYPE_ICONS: Record<DbPropertyType, LucideIcon> = PROPERTY_
   },
   {} as Record<DbPropertyType, LucideIcon>
 );
-
-export const PROPERTY_TYPE_LABELS: Record<DbPropertyType, string> = PROPERTY_TYPES.reduce(
-  (acc, p) => {
-    acc[p.type] = p.label;
-    return acc;
-  },
-  {} as Record<DbPropertyType, string>
-);

@@ -16,16 +16,8 @@ import {
   Paragraph,
   TextRun,
 } from "docx";
-import type { Block, Json } from "@/lib/db/types";
-
-type PMMark = { type?: string; attrs?: Record<string, Json> };
-type PMNode = {
-  type?: string;
-  attrs?: Record<string, Json>;
-  content?: PMNode[];
-  marks?: PMMark[];
-  text?: string;
-};
+import type { Block } from "@/lib/db/types";
+import { asNode, byPosition, childNodes, collectText, type PMNode } from "@/lib/export/pmWalk";
 
 const HEADING_LEVELS = [
   HeadingLevel.HEADING_1,
@@ -35,25 +27,6 @@ const HEADING_LEVELS = [
   HeadingLevel.HEADING_5,
   HeadingLevel.HEADING_6,
 ];
-
-function byPosition(a: Block, b: Block): number {
-  return a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
-}
-
-function asNode(value: Json): PMNode | null {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
-  const n = value as PMNode;
-  return typeof n.type === "string" ? n : null;
-}
-
-function childNodes(node: PMNode): PMNode[] {
-  return Array.isArray(node.content) ? node.content.filter((c): c is PMNode => !!c) : [];
-}
-
-function collectText(node: PMNode): string {
-  if (node.type === "text") return node.text ?? "";
-  return childNodes(node).map(collectText).join("");
-}
 
 /** Flattens an inline run into TextRuns carrying bold/italic/underline/strike/code + link href as plain text. */
 function renderRuns(children: PMNode[], indent = ""): TextRun[] {

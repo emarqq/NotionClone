@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Check, Download, Link as LinkIcon, MoreHorizontal, Star } from "lucide-react";
 import clsx from "clsx";
 import type { Page } from "@/lib/db/types";
+import { formatShortDate } from "@/lib/format";
 import {
   toggleFavoriteAction,
   touchLastViewedAction,
@@ -87,11 +88,7 @@ export default function PageMetaBar({
   const hiddenCrumbs = showEllipsis ? crumbs.slice(1, -3) : [];
 
   const edited = new Date(page.updated_at);
-  const editedLabel = edited.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const editedLabel = formatShortDate(edited);
   const editedFull = edited.toLocaleString("en-US");
 
   const handleToggleFavorite = () => {

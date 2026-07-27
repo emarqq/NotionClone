@@ -14,16 +14,8 @@
  * Markdown back, so the ProseMirror round-trip corruption class does not apply.
  */
 
-import type { Block, Json } from "@/lib/db/types";
-
-type PMMark = { type?: string; attrs?: Record<string, Json> };
-type PMNode = {
-  type?: string;
-  attrs?: Record<string, Json>;
-  content?: PMNode[];
-  marks?: PMMark[];
-  text?: string;
-};
+import type { Block } from "@/lib/db/types";
+import { asNode, byPosition, childNodes, collectText, type PMNode } from "@/lib/export/pmWalk";
 
 export interface SerializeContext {
   /** Resolve a mentioned page id → its current vault file basename (no extension). */
@@ -34,20 +26,6 @@ type Ctx = SerializeContext & { inTable: boolean };
 
 /** Inline leaf node types (joined without separators). */
 const INLINE_TYPES = new Set(["text", "hardBreak", "pageMention"]);
-
-function byPosition(a: Block, b: Block): number {
-  return a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
-}
-
-function asNode(value: Json): PMNode | null {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
-  const n = value as PMNode;
-  return typeof n.type === "string" ? n : null;
-}
-
-function childNodes(node: PMNode): PMNode[] {
-  return Array.isArray(node.content) ? node.content.filter((c): c is PMNode => !!c) : [];
-}
 
 function isInlineRun(children: PMNode[]): boolean {
   return children.length > 0 && children.every((c) => INLINE_TYPES.has(c.type ?? ""));
@@ -72,11 +50,6 @@ function inlineCode(raw: string): string {
   const fence = "`".repeat(longest + 1);
   const needsPad = raw.startsWith("`") || raw.endsWith("`") || raw.trim() !== raw;
   return needsPad ? `${fence} ${raw} ${fence}` : `${fence}${raw}${fence}`;
-}
-
-function collectText(node: PMNode): string {
-  if (node.type === "text") return node.text ?? "";
-  return childNodes(node).map(collectText).join("");
 }
 
 function renderText(node: PMNode, ctx: Ctx): string {

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { createPage, setPageIcon } from "@/lib/db/pages";
 import { replacePageBlocks, type BlockInput } from "@/lib/db/blocks";
+import { formatShortDate } from "@/lib/format";
 import { firstPosition, positionAfter } from "@/lib/positions";
 import { ingestPage } from "@/lib/rag/ingest";
 import type { BlockType, Json, Page } from "@/lib/db/types";
@@ -69,11 +70,7 @@ export async function createMeetingNoteAction(
   parentPageId?: string | null
 ): Promise<Page> {
   const now = new Date();
-  const dateLabel = now.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const dateLabel = formatShortDate(now);
   const time = `${String(now.getHours()).padStart(2, "0")}:${String(
     now.getMinutes()
   ).padStart(2, "0")}`;

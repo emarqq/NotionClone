@@ -59,28 +59,6 @@ export async function removePath(rel: string): Promise<void> {
   await pruneEmptyDirs(path.dirname(target));
 }
 
-/** Absolute paths of every `.md` file under the export root (for orphan reconciliation). */
-export async function listMarkdownFiles(): Promise<string[]> {
-  const root = exportRoot();
-  const out: string[] = [];
-  async function walk(dir: string): Promise<void> {
-    let entries: import("node:fs").Dirent[];
-    try {
-      entries = await fs.readdir(dir, { withFileTypes: true });
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
-      throw err;
-    }
-    for (const entry of entries) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) await walk(full);
-      else if (entry.isFile() && entry.name.endsWith(".md")) out.push(full);
-    }
-  }
-  await walk(root);
-  return out;
-}
-
 /** Remove empty directories walking up from `startDir`, stopping at the export root. */
 async function pruneEmptyDirs(startDir: string): Promise<void> {
   const root = exportRoot();

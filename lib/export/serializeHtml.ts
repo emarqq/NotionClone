@@ -9,30 +9,8 @@
  * (Postgres JSON → HTML) — never parses HTML back.
  */
 
-import type { Block, Json } from "@/lib/db/types";
-
-type PMMark = { type?: string; attrs?: Record<string, Json> };
-type PMNode = {
-  type?: string;
-  attrs?: Record<string, Json>;
-  content?: PMNode[];
-  marks?: PMMark[];
-  text?: string;
-};
-
-function byPosition(a: Block, b: Block): number {
-  return a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
-}
-
-function asNode(value: Json): PMNode | null {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
-  const n = value as PMNode;
-  return typeof n.type === "string" ? n : null;
-}
-
-function childNodes(node: PMNode): PMNode[] {
-  return Array.isArray(node.content) ? node.content.filter((c): c is PMNode => !!c) : [];
-}
+import type { Block } from "@/lib/db/types";
+import { asNode, byPosition, childNodes, collectText, type PMNode } from "@/lib/export/pmWalk";
 
 export function escapeHtml(s: string): string {
   return s
@@ -40,11 +18,6 @@ export function escapeHtml(s: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-function collectText(node: PMNode): string {
-  if (node.type === "text") return node.text ?? "";
-  return childNodes(node).map(collectText).join("");
 }
 
 function renderText(node: PMNode): string {

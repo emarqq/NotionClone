@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getFavorites, getRecents, getSpaces } from "@/lib/db/pages";
 import type { Page, Space } from "@/lib/db/types";
+import { formatShortDate } from "@/lib/format";
 import { DefaultPageIcon, PageIcon } from "@/lib/icons";
 import AskBrainBar from "@/components/ai-panel/AskBrainBar";
 
@@ -11,14 +12,6 @@ function greetingForNow(): string {
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
   return "Good evening";
-}
-
-function formatEdited(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 function PageCardGrid({
@@ -68,7 +61,7 @@ function PageCardGrid({
                 </span>
                 <span aria-hidden>·</span>
                 <span className="shrink-0">
-                  Edited {formatEdited(page.updated_at)}
+                  Edited {formatShortDate(page.updated_at)}
                 </span>
               </div>
             </Link>
