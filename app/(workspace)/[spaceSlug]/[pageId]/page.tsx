@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import Backlinks from "@/components/backlinks/Backlinks";
 import Editor from "@/components/editor/Editor";
 import TitleInput from "@/components/editor/TitleInput";
 import AttachmentsPanel from "@/components/files/AttachmentsPanel";
@@ -65,7 +64,6 @@ export default async function PageView({
         </header>
         <Editor pageId={page.id} initialBlocks={blocks} breadcrumb={page.title} />
         <SubPagesList pages={children} spaceSlug={spaceSlug} />
-        <Backlinks pageId={page.id} />
         <div className="mt-12">
           <AttachmentsPanel pageId={page.id} />
         </div>
