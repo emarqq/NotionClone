@@ -23,6 +23,8 @@ export interface ContentsPanelProps {
   parent: { id: string; title: string; icon: string | null } | null;
   /** Direct, non-archived children of `page` (already fetched server-side). */
   initialChildren: Page[];
+  /** Suppress the sub-pages section (e.g. database pages, whose rows live in the table view instead). */
+  hideSubPages?: boolean;
 }
 
 /**
@@ -38,6 +40,7 @@ export default function ContentsPanel({
   spaceSlug,
   parent,
   initialChildren,
+  hideSubPages = false,
 }: ContentsPanelProps) {
   const router = useRouter();
   const aiPanelOpen = useAiPanelStore((s) => s.open);
@@ -113,19 +116,21 @@ export default function ContentsPanel({
             </Link>
           )}
 
-          <section>
-            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
-              Sub-pages
-            </p>
-            <SubPageTree spaceSlug={spaceSlug} pages={initialChildren} depth={0} />
-            <button
-              type="button"
-              onClick={handleNewSubPage}
-              className="flex w-full items-center gap-1.5 px-3 py-1 text-left text-[13px] text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-200"
-            >
-              <Plus size={12} /> New sub-page
-            </button>
-          </section>
+          {!hideSubPages && (
+            <section>
+              <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
+                Sub-pages
+              </p>
+              <SubPageTree spaceSlug={spaceSlug} pages={initialChildren} depth={0} />
+              <button
+                type="button"
+                onClick={handleNewSubPage}
+                className="flex w-full items-center gap-1.5 px-3 py-1 text-left text-[13px] text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-200"
+              >
+                <Plus size={12} /> New sub-page
+              </button>
+            </section>
+          )}
 
           <section className="border-t border-neutral-200 pt-2 dark:border-neutral-800">
             <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-600">

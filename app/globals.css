@@ -46,3 +46,18 @@ body {
 ::selection {
   background: color-mix(in srgb, var(--foreground) 15%, transparent);
 }
+
+/* --- Electron desktop shell (macOS "hiddenInset" titlebar) ---
+   The traffic-light window controls float over the top-left of the window,
+   i.e. over the sidebar. Make the sidebar header a sticky, inset drag bar so
+   its content (and anything scrolling beneath it) clears the controls. The
+   `.is-electron` class is added by AppShell only in the Electron shell, so
+   these rules are inert in the browser build. */
+.is-electron .app-sidebar-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding-top: 2.25rem; /* clear the ~28px traffic-light row with breathing room */
+  background: inherit; /* match the sidebar background while pinned */
+  -webkit-app-region: drag; /* let the window be dragged from this strip */
+}

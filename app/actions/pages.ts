@@ -22,6 +22,11 @@ import {
 import { deleteFileByStoragePath } from "@/lib/db/files";
 import type { Page, Space } from "@/lib/db/types";
 import { ingestPage } from "@/lib/rag/ingest";
+import {
+  scheduleDelete,
+  scheduleExport,
+  scheduleExportRename,
+} from "@/lib/export/schedule";
 
 /** Creates a new space (top-level section like School/Work) and returns it. */
 export async function createSpaceAction(
@@ -48,6 +53,7 @@ export async function createPageAction(
   });
   revalidatePath("/", "layout");
   revalidatePath(`/${spaceSlug}`);
+  scheduleExport(page.id);
   return page;
 }
 
@@ -57,18 +63,22 @@ export async function renamePageAction(
 ): Promise<Page> {
   const page = await renamePage(id, title.trim() || "Untitled");
   revalidatePath("/", "layout");
+  scheduleExportRename(id);
   return page;
 }
 
 export async function archivePageAction(id: string): Promise<void> {
   await archivePage(id);
   revalidatePath("/", "layout");
+  // Unified reconcile relocates the page (and its subtree) under Archive/.
+  scheduleExport(id);
 }
 
 /** Permanently deletes a page and its subtree. Irreversible. */
 export async function deletePageAction(id: string): Promise<void> {
   await deletePage(id);
   revalidatePath("/", "layout");
+  scheduleDelete(id);
 }
 
 export async function movePageAction(input: {
@@ -78,6 +88,8 @@ export async function movePageAction(input: {
 }): Promise<Page> {
   const page = await movePage(input);
   revalidatePath("/", "layout");
+  // Reparent changes the vault folder path + the page's `parent` wikilink.
+  scheduleExport(page.id);
   return page;
 }
 
@@ -87,6 +99,7 @@ export async function setPageIconAction(
 ): Promise<Page> {
   const page = await setPageIcon(id, icon);
   revalidatePath("/", "layout");
+  scheduleExport(page.id);
   return page;
 }
 
@@ -132,6 +145,7 @@ export async function toggleFavoriteAction(
 export async function duplicatePageAction(id: string): Promise<Page> {
   const page = await duplicatePage(id);
   revalidatePath("/", "layout");
+  scheduleExport(page.id);
   return page;
 }
 
@@ -151,6 +165,9 @@ export async function movePageToSpaceAction(
       );
     }
   });
+  // The unified path-reconcile moves the moved page's file + child folder (and
+  // thus the whole subtree) to the new space; descendants need no re-serialize.
+  scheduleExport(id);
   return page;
 }
 

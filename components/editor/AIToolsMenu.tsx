@@ -13,6 +13,7 @@ import {
   Code,
   Eraser,
   Italic,
+  Link2,
   ListTree,
   MessageSquare,
   Sparkles,
@@ -24,6 +25,8 @@ import {
 
 import { useAIProposalStore } from "./aiProposalStore";
 import type { AITool } from "./aiProposalStore";
+import { useLinkEditorStore } from "./linkEditorStore";
+import { useCommentStore } from "./commentStore";
 import { BLOCK_ITEMS, getCurrentBlockItem } from "./blockItems";
 
 interface ToolButton {
@@ -246,6 +249,15 @@ export default function AIToolsMenu({
               ))}
               <button
                 type="button"
+                title="Link (⌘K)"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => useLinkEditorStore.getState().open(editor)}
+                className={markButtonClass(editor.isActive("link"))}
+              >
+                <Link2 size={14} className="shrink-0" />
+              </button>
+              <button
+                type="button"
                 title="Clear formatting"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => editor.chain().focus().unsetAllMarks().run()}
@@ -274,17 +286,18 @@ export default function AIToolsMenu({
 
             <div className="my-1 h-px bg-neutral-200 dark:bg-neutral-700" />
 
-            {/* Comment — anchoring/threads/resolve not built yet */}
+            {/* Comment on the selected text (also ⌘⇧M). */}
             <button
               type="button"
-              disabled
-              title="Comments are coming soon"
-              className="flex w-full cursor-not-allowed items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-neutral-400 dark:text-neutral-500"
+              title="Comment (⌘⇧M)"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => useCommentStore.getState().openComposer(editor)}
+              className={rowClass}
             >
               <MessageSquare size={15} className="shrink-0" />
               <span className="flex-1">Comment</span>
-              <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs dark:bg-neutral-800">
-                Soon
+              <span className="text-xs text-neutral-400 dark:text-neutral-500">
+                ⌘⇧M
               </span>
             </button>
 

@@ -25,7 +25,7 @@ const http = require("node:http");
 // checkout on disk, so deriving REPO_DIR from __dirname silently points at
 // garbage (this was caught in testing: it produced a bogus Supabase
 // project-id derived from ".../Contents" and nearly raced the real stack).
-const REPO_DIR = "/Users/erikmarquardt/OS/projects/NotionClone";
+const REPO_DIR = "/Users/erikmarquardt/Hub/OS/projects/NotionClone";
 const DESKTOP_DIR = path.join(REPO_DIR, "desktop");
 const LOG_DIR = path.join(app.getPath("home"), "Library", "Logs");
 const LOG_FILE = path.join(LOG_DIR, "NotionClone.log");
@@ -331,6 +331,7 @@ function createMainWindow() {
     minWidth: 940,
     minHeight: 600,
     title: "Notion Clone",
+    titleBarStyle: "hiddenInset",
     icon: path.join(DESKTOP_DIR, "icon.icns"),
     show: false,
     webPreferences: { contextIsolation: true },

@@ -6,7 +6,12 @@ import { retrieve, type RetrievedSource } from "@/lib/rag/retriever";
 import { buildRagPrompt } from "@/lib/rag/prompt";
 import { getLLMProvider } from "@/lib/llm/registry";
 import type { ChatMessage } from "@/lib/llm/types";
-import { addMessage, createConversation, getMessages } from "@/lib/db/ai";
+import {
+  addMessage,
+  createConversation,
+  getConversation,
+  getMessages,
+} from "@/lib/db/ai";
 import type { Json } from "@/lib/db/types";
 
 const HISTORY_LIMIT = 8;
@@ -16,6 +21,8 @@ interface ChatRequestBody {
   conversationId?: string;
   message: string;
   spaceId?: string | null;
+  /** Graph-RAG: also pull chunks from linked pages (see lib/rag/retriever). */
+  graphExpand?: boolean;
 }
 
 /** RetrievedSource plus the display metadata the panel needs to render a clickable citation. */
@@ -117,6 +124,7 @@ export async function POST(request: NextRequest) {
     });
   }
   const spaceId = body.spaceId ?? null;
+  const graphExpand = body.graphExpand ?? false;
 
   const encoder = new TextEncoder();
 
@@ -130,8 +138,15 @@ export async function POST(request: NextRequest) {
         let conversationId = body.conversationId;
         let priorMessages: ChatMessage[] = [];
 
-        if (conversationId) {
-          const history = await getMessages(conversationId);
+        // A client-supplied conversationId can be stale (e.g. persisted in
+        // localStorage from before a deleted/reset conversation table) —
+        // fall back to starting a fresh conversation rather than crashing.
+        const existing = conversationId
+          ? await getConversation(conversationId)
+          : null;
+
+        if (existing) {
+          const history = await getMessages(conversationId!);
           priorMessages = history
             .slice(-HISTORY_LIMIT)
             .map((m) => ({ role: m.role, content: m.content }));
@@ -142,10 +157,18 @@ export async function POST(request: NextRequest) {
           );
           conversationId = conversation.id;
         }
+        if (!conversationId) {
+          throw new Error("conversationId missing after conversation resolution");
+        }
 
         await addMessage(conversationId, "user", message);
 
-        const sources = await retrieve(message, { spaceId, k: 8 });
+        const sources = await retrieve(message, {
+          spaceId,
+          k: 8,
+          expand: graphExpand,
+          hops: 1,
+        });
         const enriched = await enrichSources(sources);
 
         send({ type: "meta", conversationId, sources: enriched });

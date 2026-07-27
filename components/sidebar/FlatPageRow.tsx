@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Table2 } from "lucide-react";
 import clsx from "clsx";
 import type { Page } from "@/lib/db/types";
 import PageActionsMenu, { type MenuSpace } from "@/components/page-actions/PageActionsMenu";
@@ -41,7 +41,17 @@ export default function FlatPageRow({
       )}
     >
       <span className="flex w-4 shrink-0 items-center justify-center leading-none">
-        <PageIcon icon={page.icon} size={14} fallback={<DefaultPageIcon size={14} />} />
+        <PageIcon
+          icon={page.icon}
+          size={14}
+          fallback={
+            page.is_database ? (
+              <Table2 size={14} className="text-neutral-400 dark:text-neutral-500" />
+            ) : (
+              <DefaultPageIcon size={14} />
+            )
+          }
+        />
       </span>
       <Link href={href} className="min-w-0 flex-1 truncate">
         {page.title}

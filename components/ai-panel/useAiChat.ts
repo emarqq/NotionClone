@@ -58,7 +58,12 @@ export function useAiChat(onConversationId: (id: string) => void) {
   }, []);
 
   const send = useCallback(
-    async (text: string, conversationId: string | null, spaceId: string | null) => {
+    async (
+      text: string,
+      conversationId: string | null,
+      spaceId: string | null,
+      graphExpand: boolean
+    ) => {
       const trimmed = text.trim();
       if (!trimmed || isStreaming) return;
       setError(null);
@@ -78,7 +83,12 @@ export function useAiChat(onConversationId: (id: string) => void) {
         const res = await fetch("/api/ai/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ conversationId, message: trimmed, spaceId }),
+          body: JSON.stringify({
+            conversationId,
+            message: trimmed,
+            spaceId,
+            graphExpand,
+          }),
           signal: controller.signal,
         });
         if (!res.ok || !res.body) {

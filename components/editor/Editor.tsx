@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
@@ -20,12 +21,24 @@ import type { Block } from "@/lib/db/types";
 import { saveBlocksAction } from "@/app/actions/editor";
 import { blocksFromDoc, docFromBlocks } from "./blockSync";
 import { Autocorrect } from "./extensions/autocorrect";
+import { AutoCapitalize } from "./extensions/auto-capitalize";
 import { BlockId } from "./extensions/block-id";
 import { Callout } from "./extensions/callout";
+import { Comment } from "./extensions/comment";
+import { Link } from "./extensions/link";
+import { ListExit } from "./extensions/list-exit";
 import { MoveBlock } from "./extensions/move-block";
+import { PageMention } from "./extensions/page-mention";
 import { SelectAll } from "./extensions/select-all";
 import { Toggle, ToggleContent, ToggleSummary } from "./extensions/toggle";
 import SlashMenu from "./SlashMenu";
+import MentionMenu from "./MentionMenu";
+import LinkEditor from "./LinkEditor";
+import CommentComposer from "./CommentComposer";
+import CommentGutter from "./CommentGutter";
+import CommentThreadPopover from "./CommentThreadPopover";
+import { useCommentStore } from "./commentStore";
+import CommentsPanel from "@/components/comments/CommentsPanel";
 import AIToolsMenu from "./AIToolsMenu";
 import AIProposalCard from "./AIProposalCard";
 import "./editor.css";
@@ -44,6 +57,7 @@ export default function Editor({
   breadcrumb?: string;
 }) {
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const router = useRouter();
 
   const docRef = useRef<PMNode | null>(null);
   const dirtyRef = useRef(false);
@@ -112,14 +126,28 @@ export default function Editor({
       Image,
       Underline,
       Highlight.configure({ multicolor: true }),
+      Link.configure({
+        openOnClick: true,
+        autolink: true,
+        linkOnPaste: true,
+        HTMLAttributes: {
+          target: "_blank",
+          rel: "noopener noreferrer",
+          class: "editor-link",
+        },
+      }),
       Callout,
+      Comment,
       Toggle,
       ToggleSummary,
       ToggleContent,
+      PageMention,
       BlockId,
+      ListExit,
       MoveBlock,
       SelectAll,
       Autocorrect,
+      AutoCapitalize,
       Placeholder.configure({
         placeholder: ({ node }) =>
           node.type.name === "toggleSummary"
@@ -132,6 +160,34 @@ export default function Editor({
       attributes: {
         class: "editor-prose focus:outline-none",
         "data-page-id": pageId,
+      },
+      // Client-side navigation when a page mention is clicked (the atom's
+      // href is a real /slug/id path, so preventDefault the native nav).
+      handleClickOn: (_view, _pos, node, _nodePos, event) => {
+        if (node.type.name === "pageMention") {
+          const { spaceSlug, pageId: targetId } = node.attrs as {
+            spaceSlug: string | null;
+            pageId: string | null;
+          };
+          if (spaceSlug && targetId) {
+            event.preventDefault();
+            router.push(`/${spaceSlug}/${targetId}`);
+            return true;
+          }
+        }
+        // Clicking commented text opens its thread popover. Detect via the
+        // rendered span (handleClickOn passes the block node for plain marked
+        // text, so node.marks wouldn't carry the comment mark).
+        const commentEl = (event.target as HTMLElement | null)?.closest?.(
+          "[data-comment-thread]"
+        );
+        const threadId = commentEl?.getAttribute("data-comment-thread");
+        if (threadId) {
+          event.preventDefault();
+          useCommentStore.getState().openThread(threadId);
+          return true;
+        }
+        return false;
       },
       handlePaste: (view, event) => {
         const files = Array.from(event.clipboardData?.files ?? []).filter((f) =>
@@ -189,6 +245,12 @@ export default function Editor({
         {editor && (
           <>
             <SlashMenu editor={editor} breadcrumb={breadcrumb} />
+            <MentionMenu editor={editor} pageId={pageId} />
+            <LinkEditor editor={editor} />
+            <CommentComposer editor={editor} pageId={pageId} />
+            <CommentGutter editor={editor} />
+            <CommentThreadPopover editor={editor} pageId={pageId} />
+            <CommentsPanel editor={editor} pageId={pageId} />
             <AIProposalCard editor={editor} />
           </>
         )}
@@ -203,8 +265,16 @@ export default function Editor({
         'insertBefore' on 'Node': ... is not a child of this node." Keeping
         it outside the div above, in its own sibling slot, means React never
         needs that node as a reconciliation anchor for the toggling elements.
+
+        The dedicated wrapper <div> matters too: the reparented placeholder
+        must not be a TOP-LEVEL host node of this component, or React's
+        deletion pass calls removeChild on it directly and crashes with
+        "Failed to execute 'removeChild'" when Editor is swapped out in place
+        (e.g. "Turn into database" re-rendering the same route via
+        router.refresh()). The wrapper stays where React put it, so deletion
+        removes the wrapper and never touches the reparented node inside.
       */}
-      {editor && <AIToolsMenu editor={editor} breadcrumb={breadcrumb} />}
+      <div>{editor && <AIToolsMenu editor={editor} breadcrumb={breadcrumb} />}</div>
     </>
   );
 }

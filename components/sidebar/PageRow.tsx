@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { ChevronRight, MoreHorizontal, Plus } from "lucide-react";
+import { ChevronRight, MoreHorizontal, Plus, Table2 } from "lucide-react";
 import clsx from "clsx";
 import type { PageTreeNode } from "@/lib/db/types";
 import { createPageAction, movePageAction, renamePageAction } from "@/app/actions/pages";
@@ -16,7 +16,6 @@ const HOVER_BTN_CLASS =
 
 export interface PageRowProps {
   node: PageTreeNode;
-  depth: number;
   spaceId: string;
   spaceSlug: string;
   spaces: MenuSpace[];
@@ -29,7 +28,6 @@ export interface PageRowProps {
 /** A single sidebar page row: link, expand chevron, hover actions, DnD handlers. */
 export default function PageRow({
   node,
-  depth,
   spaceId,
   spaceSlug,
   spaces,
@@ -45,6 +43,9 @@ export default function PageRow({
   const [isPending, startTransition] = useTransition();
 
   const hasChildren = node.children.length > 0;
+  // Database pages render as tree leaves: no expand affordance, no nested
+  // children — rows live in the table view instead.
+  const showChevron = hasChildren && !node.is_database;
 
   const commitRename = (value: string) => {
     setRenaming(false);
@@ -75,7 +76,7 @@ export default function PageRow({
           "bg-secondary/10 ring-1 ring-inset ring-secondary dark:bg-secondary/20",
         isPending && "opacity-60"
       )}
-      style={{ paddingLeft: depth * 12 + 4 }}
+      style={{ paddingLeft: 4 }}
       draggable={!renaming}
       onDragStart={(e) => {
         dragState.current = {
@@ -123,7 +124,7 @@ export default function PageRow({
         aria-label={expanded ? "Collapse" : "Expand"}
         className={clsx(
           "flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-400 hover:bg-neutral-300/70 hover:text-neutral-700 dark:hover:bg-neutral-700 dark:hover:text-neutral-200",
-          !hasChildren && "invisible"
+          !showChevron && "invisible"
         )}
       >
         <ChevronRight
@@ -132,7 +133,17 @@ export default function PageRow({
         />
       </button>
       <span className="flex w-4 shrink-0 items-center justify-center leading-none">
-        <PageIcon icon={node.icon} size={14} fallback={<DefaultPageIcon size={14} />} />
+        <PageIcon
+          icon={node.icon}
+          size={14}
+          fallback={
+            node.is_database ? (
+              <Table2 size={14} className="text-neutral-400 dark:text-neutral-500" />
+            ) : (
+              <DefaultPageIcon size={14} />
+            )
+          }
+        />
       </span>
       {renaming ? (
         <input
@@ -161,15 +172,17 @@ export default function PageRow({
       )}
       {!renaming && (
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100">
-          <button
-            type="button"
-            title="New child page"
-            aria-label="New child page"
-            className={HOVER_BTN_CLASS}
-            onClick={handleNewChild}
-          >
-            <Plus size={13} />
-          </button>
+          {!node.is_database && (
+            <button
+              type="button"
+              title="New child page"
+              aria-label="New child page"
+              className={HOVER_BTN_CLASS}
+              onClick={handleNewChild}
+            >
+              <Plus size={13} />
+            </button>
+          )}
           <button
             type="button"
             title="More actions"

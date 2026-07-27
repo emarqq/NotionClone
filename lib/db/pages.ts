@@ -3,7 +3,17 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { firstPosition, positionAfter, positionBetween } from "@/lib/positions";
-import type { Block, Json, Page, PageTreeNode, Space } from "@/lib/db/types";
+import type {
+  Block,
+  DbProperty,
+  DbPropertyOption,
+  DbView,
+  DbViewConfig,
+  Json,
+  Page,
+  PageTreeNode,
+  Space,
+} from "@/lib/db/types";
 
 export async function getSpaces(): Promise<Space[]> {
   const supabase = createServiceSupabase();
@@ -470,11 +480,50 @@ function withBlockIdAttr(content: Json, blockId: string): Json {
 }
 
 /**
+ * Rewrites the property ids referenced in a view config (filter, sorts,
+ * groupBy, dateProperty, columns) using `idMap`. Entries whose old property
+ * id has no mapping are dropped, same as deleteProperty's view scrub.
+ */
+function remapViewConfig(raw: Json, idMap: Map<string, string>): DbViewConfig {
+  const config =
+    raw !== null && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, Json>)
+      : {};
+  const filter =
+    (config.filter as unknown as DbViewConfig["filter"] | undefined) ?? null;
+  const sorts = (config.sorts as unknown as DbViewConfig["sorts"] | undefined) ?? [];
+  const groupBy = (config.groupBy as string | null | undefined) ?? null;
+  const dateProperty =
+    (config.dateProperty as string | null | undefined) ?? null;
+  const columns =
+    (config.columns as unknown as DbViewConfig["columns"] | undefined) ?? [];
+
+  return {
+    filter:
+      filter && idMap.has(filter.propertyId)
+        ? { ...filter, propertyId: idMap.get(filter.propertyId)! }
+        : null,
+    sorts: sorts
+      .filter((s) => idMap.has(s.propertyId))
+      .map((s) => ({ ...s, propertyId: idMap.get(s.propertyId)! })),
+    groupBy: groupBy && idMap.has(groupBy) ? idMap.get(groupBy)! : null,
+    dateProperty:
+      dateProperty && idMap.has(dateProperty) ? idMap.get(dateProperty)! : null,
+    columns: columns
+      .filter((c) => idMap.has(c.propertyId))
+      .map((c) => ({ ...c, propertyId: idMap.get(c.propertyId)! })),
+  };
+}
+
+/**
  * Duplicates a page: copies the page row (title + " (copy)", never favorite,
  * positioned directly after the original among its siblings) and all of its
  * block rows under fresh block ids (including the editor's
  * `content.attrs.blockId` and `parent_block_id` references).
- * Shallow: child pages are NOT copied.
+ * Shallow: child pages (rows, for a database) are NOT copied. When the
+ * source is a database, its schema — db_properties, db_property_options and
+ * db_views — IS copied onto the duplicate (under fresh ids, with view
+ * configs rewritten to the new property ids); rows are not.
  */
 export async function duplicatePage(id: string): Promise<Page> {
   const supabase = createServiceSupabase();
@@ -516,6 +565,7 @@ export async function duplicatePage(id: string): Promise<Page> {
       icon: original.icon,
       position,
       is_favorite: false,
+      is_database: original.is_database,
     })
     .select("*")
     .single();
@@ -551,6 +601,97 @@ export async function duplicatePage(id: string): Promise<Page> {
     const { error: insertError } = await supabase.from("blocks").insert(rows);
     if (insertError) {
       throw new Error(`duplicatePage failed: ${insertError.message}`);
+    }
+  }
+
+  if (original.is_database) {
+    const { data: propsData, error: propsError } = await supabase
+      .from("db_properties")
+      .select("*")
+      .eq("database_page_id", id);
+    if (propsError) {
+      throw new Error(`duplicatePage failed: ${propsError.message}`);
+    }
+    const properties = (propsData ?? []) as DbProperty[];
+
+    // Old -> new property id map, so options and view configs below can be
+    // rewritten to point at the copy's own properties.
+    const propertyIdMap = new Map<string, string>();
+
+    if (properties.length > 0) {
+      const propertyRows = properties.map((p) => {
+        const newId = randomUUID();
+        propertyIdMap.set(p.id, newId);
+        return {
+          id: newId,
+          database_page_id: copy.id,
+          name: p.name,
+          type: p.type,
+          position: p.position,
+          config: p.config,
+        };
+      });
+      const { error: insertPropsError } = await supabase
+        .from("db_properties")
+        .insert(propertyRows);
+      if (insertPropsError) {
+        throw new Error(`duplicatePage failed: ${insertPropsError.message}`);
+      }
+
+      const { data: optionsData, error: optionsError } = await supabase
+        .from("db_property_options")
+        .select("*")
+        .in(
+          "property_id",
+          properties.map((p) => p.id)
+        );
+      if (optionsError) {
+        throw new Error(`duplicatePage failed: ${optionsError.message}`);
+      }
+      const options = (optionsData ?? []) as DbPropertyOption[];
+      if (options.length > 0) {
+        const optionRows = options.map((o) => ({
+          id: randomUUID(),
+          property_id: propertyIdMap.get(o.property_id)!,
+          label: o.label,
+          color: o.color,
+          position: o.position,
+          status_group: o.status_group,
+        }));
+        const { error: insertOptionsError } = await supabase
+          .from("db_property_options")
+          .insert(optionRows);
+        if (insertOptionsError) {
+          throw new Error(`duplicatePage failed: ${insertOptionsError.message}`);
+        }
+      }
+    }
+
+    const { data: viewsData, error: viewsError } = await supabase
+      .from("db_views")
+      .select("*")
+      .eq("database_page_id", id);
+    if (viewsError) {
+      throw new Error(`duplicatePage failed: ${viewsError.message}`);
+    }
+    const views = (viewsData ?? []) as (Omit<DbView, "config"> & {
+      config: Json;
+    })[];
+    if (views.length > 0) {
+      const viewRows = views.map((v) => ({
+        id: randomUUID(),
+        database_page_id: copy.id,
+        name: v.name,
+        type: v.type,
+        position: v.position,
+        config: remapViewConfig(v.config, propertyIdMap),
+      }));
+      const { error: insertViewsError } = await supabase
+        .from("db_views")
+        .insert(viewRows);
+      if (insertViewsError) {
+        throw new Error(`duplicatePage failed: ${insertViewsError.message}`);
+      }
     }
   }
 

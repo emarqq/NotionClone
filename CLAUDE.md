@@ -31,6 +31,9 @@ supabase start           # boot local stack (needs colima/docker running)
 supabase db reset        # re-apply all migrations + seed.sql (School/Work spaces)
 ```
 
+> [!CAUTION]
+> **NEVER run `supabase db reset` (or any other command that drops/recreates the local database) without asking the user first and getting an explicit yes, every single time — no exceptions for "just verifying a migration."** This database holds the user's real, un-backed-up notes. There is no automatic backup: local Time Machine is not configured on this machine, there is no dangling Docker volume left behind, and there is no `pg_dump`/WAL archive anywhere. A reset run on 2026-07-07 during routine migration verification destroyed a "Personal" space and dozens of pages across Work/School with no way to recover the actual written content — only page titles survived, and only because they happened to be cached in the Electron app's local tab-history storage. To verify a new migration applies cleanly, either ask the user to confirm a reset is safe, or — preferably — spin up a disposable throwaway Postgres/Supabase instance (e.g. a second `supabase` project directory, or apply the migration SQL directly against a scratch database) instead of touching the project's real local stack.
+
 Quirks: CLI installed via tarball (not brew); colima needs `DOCKER_HOST=unix://…/.colima/default/docker.sock`; **`db reset` wipes the Supabase Auth user** (re-create the login after a reset); migrations must include explicit `GRANT`s (local images ship no default grants).
 
 ### Desktop app — seeing your changes (hard gotcha)
@@ -58,7 +61,7 @@ nohup npx next start -p 3777 &       # restart
 
 ## Conventions & pitfalls
 
-- Migrations only for schema; keep them replayable (`supabase db reset` must apply cleanly with seed).
+- Migrations only for schema; keep them replayable (must apply cleanly with seed against a fresh database) — but see the `supabase db reset` caution above: never verify this by resetting the user's real local stack.
 - **Tiptap 2.27** — BubbleMenu is built in; do **not** add `@tiptap/extension-bubble-menu` (v3-only). Note: it may still appear transitively in package-lock.json — that's normal, not a violation.
 - Ingestion has no manual delete path — deletes cascade to `blocks`/`chunks`/`links` via `on delete cascade` FKs.
 - Known limitation: the default 8B local model can hallucinate on sparse sources; the always-visible sources list is the mitigation.

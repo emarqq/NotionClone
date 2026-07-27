@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, PanelLeft, Plus, Sparkles, X } from "lucide-react";
 import clsx from "clsx";
@@ -16,6 +16,17 @@ import { useAiPanelStore } from "@/components/ai-panel/store";
 
 const ICON_BTN_CLASS =
   "flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-500 transition-colors hover:bg-neutral-200/70 hover:text-neutral-800 disabled:pointer-events-none disabled:opacity-35 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100";
+
+// Electron (macOS "hiddenInset" titlebar) draggable-region styles. These are
+// a no-op in the browser (unknown CSS property), so applying them
+// unconditionally is safe for the :3000 web build too.
+// `paddingLeft` leaves room for the traffic-light window controls (~70px)
+// which sit over the top-left corner once the native titlebar is hidden.
+const DRAG_REGION_STYLE = {
+  WebkitAppRegion: "drag",
+  paddingLeft: 72,
+} as CSSProperties;
+const NO_DRAG_STYLE = { WebkitAppRegion: "no-drag" } as CSSProperties;
 
 /** Matches workspace page routes: /[spaceSlug]/[pageId] */
 const PAGE_ROUTE_RE = /^\/([^/]+)\/([^/]+)\/?$/;
@@ -89,13 +100,17 @@ export default function TabBar({ spaces }: TabBarProps) {
   };
 
   return (
-    <div className="flex h-9 shrink-0 items-center gap-0.5 border-b border-neutral-200 bg-neutral-50 px-1.5 dark:border-neutral-800 dark:bg-neutral-950">
+    <div
+      className="flex h-9 shrink-0 items-center gap-0.5 border-b border-neutral-200 bg-neutral-50 px-1.5 dark:border-neutral-800 dark:bg-neutral-950"
+      style={DRAG_REGION_STYLE}
+    >
       <button
         type="button"
         onClick={toggleSidebar}
         className={ICON_BTN_CLASS}
         title="Toggle sidebar (⌘\)"
         aria-label="Toggle sidebar"
+        style={NO_DRAG_STYLE}
       >
         <PanelLeft className="h-4 w-4" />
       </button>
@@ -106,6 +121,7 @@ export default function TabBar({ spaces }: TabBarProps) {
         className={ICON_BTN_CLASS}
         title="Back (⌘[)"
         aria-label="Go back"
+        style={NO_DRAG_STYLE}
       >
         <ArrowLeft className="h-4 w-4" />
       </button>
@@ -116,6 +132,7 @@ export default function TabBar({ spaces }: TabBarProps) {
         className={ICON_BTN_CLASS}
         title="Forward (⌘])"
         aria-label="Go forward"
+        style={NO_DRAG_STYLE}
       >
         <ArrowRight className="h-4 w-4" />
       </button>
@@ -169,6 +186,7 @@ export default function TabBar({ spaces }: TabBarProps) {
                     ? "border-neutral-700 bg-secondary/10 font-medium text-neutral-900 dark:border-neutral-200 dark:bg-secondary/15 dark:text-neutral-100"
                     : "border-transparent text-neutral-500 hover:bg-neutral-200/60 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
                 )}
+                style={NO_DRAG_STYLE}
               >
                 <span className="min-w-0 flex-1 truncate">
                   {tab.title || "Untitled"}
@@ -182,6 +200,7 @@ export default function TabBar({ spaces }: TabBarProps) {
                   className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-400 opacity-0 transition-opacity hover:bg-neutral-300/70 hover:text-neutral-700 group-hover:opacity-100 dark:hover:bg-neutral-700 dark:hover:text-neutral-200"
                   title="Close tab (⌘W)"
                   aria-label={`Close ${tab.title || "Untitled"}`}
+                  style={NO_DRAG_STYLE}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -195,6 +214,7 @@ export default function TabBar({ spaces }: TabBarProps) {
           className={clsx(ICON_BTN_CLASS, "mb-[3px]")}
           title="New tab (⌘T)"
           aria-label="New tab"
+          style={NO_DRAG_STYLE}
         >
           <Plus className="h-4 w-4" />
         </button>
@@ -210,6 +230,7 @@ export default function TabBar({ spaces }: TabBarProps) {
         )}
         title="Toggle Assistant (⌘J)"
         aria-label="Toggle Assistant"
+        style={NO_DRAG_STYLE}
       >
         <Sparkles className="h-4 w-4" />
       </button>

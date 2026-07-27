@@ -4,13 +4,34 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { replacePageBlocks, type BlockInput } from "@/lib/db/blocks";
 import { renamePage } from "@/lib/db/pages";
+import { reconcilePageLinks } from "@/lib/db/links";
+import { reconcilePageComments } from "@/lib/db/comments";
 import { ingestPage } from "@/lib/rag/ingest";
+import { scheduleExport, scheduleExportRename } from "@/lib/export/schedule";
 
 /** Re-ingests a page after its content changes; failures never break the caller. */
 function scheduleIngest(pageId: string): void {
   after(() =>
     ingestPage(pageId).catch((err) =>
       console.error(`scheduleIngest failed for page ${pageId}:`, err)
+    )
+  );
+}
+
+/** Re-derives a page's outgoing backlinks after its content changes; never breaks the caller. */
+function scheduleLinkSync(pageId: string): void {
+  after(() =>
+    reconcilePageLinks(pageId).catch((err) =>
+      console.error(`scheduleLinkSync failed for page ${pageId}:`, err)
+    )
+  );
+}
+
+/** Re-syncs a page's comment-thread anchors after its content changes; never breaks the caller. */
+function scheduleCommentSync(pageId: string): void {
+  after(() =>
+    reconcilePageComments(pageId).catch((err) =>
+      console.error(`scheduleCommentSync failed for page ${pageId}:`, err)
     )
   );
 }
@@ -23,6 +44,9 @@ export async function saveBlocksAction(
   try {
     await replacePageBlocks(pageId, blocks);
     scheduleIngest(pageId);
+    scheduleLinkSync(pageId);
+    scheduleCommentSync(pageId);
+    scheduleExport(pageId);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -40,6 +64,8 @@ export async function renamePageTitleAction(
     revalidatePath("/", "layout");
     // Title feeds chunk breadcrumbs, so re-ingest to refresh them.
     scheduleIngest(pageId);
+    // Title drives the vault filename + child folder + inbound [[wikilinks]].
+    scheduleExportRename(pageId);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

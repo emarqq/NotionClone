@@ -5,12 +5,19 @@ import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "rea
 import { createPortal } from "react-dom";
 import {
   Archive,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   CornerUpRight,
+  Download,
+  FileText,
+  FileType,
   Link as LinkIcon,
+  Notebook,
   Pencil,
   Smile,
   Star,
+  Table2,
   Trash2,
 } from "lucide-react";
 import clsx from "clsx";
@@ -23,8 +30,13 @@ import {
   setPageIconAction,
   toggleFavoriteAction,
 } from "@/app/actions/pages";
+import {
+  turnDatabaseIntoPageAction,
+  turnPageIntoDatabaseAction,
+} from "@/app/actions/databases";
 import IconPickerOverlay from "@/components/page-actions/IconPickerOverlay";
 import { PageIcon } from "@/lib/icons";
+import { pageExportUrl } from "@/lib/export/clientUrls";
 
 /** The subset of space fields the menu needs (for "Move to space"). */
 export interface MenuSpace {
@@ -42,6 +54,7 @@ export interface PageActionsMenuProps {
     title: string;
     icon: string | null;
     is_favorite: boolean;
+    is_database: boolean;
   };
   spaceSlug: string;
   spaces: MenuSpace[];
@@ -84,7 +97,7 @@ export default function PageActionsMenu({
   // one of the few dialog APIs Chromium doesn't implement there), so rename
   // uses this in-menu text field instead wherever there's no dedicated
   // inline-rename UI.
-  const [editMode, setEditMode] = useState<"rename" | "icon" | null>(null);
+  const [editMode, setEditMode] = useState<"rename" | "icon" | "export" | null>(null);
   const [editValue, setEditValue] = useState("");
 
   // The panel is portaled to <body> and positioned with `fixed` coordinates
@@ -222,6 +235,27 @@ export default function PageActionsMenu({
     });
   };
 
+  const handleTurnIntoDatabase = () => {
+    onClose();
+    startTransition(async () => {
+      await turnPageIntoDatabaseAction(page.id);
+      router.refresh();
+    });
+  };
+
+  const handleTurnIntoPage = () => {
+    onClose();
+    startTransition(async () => {
+      await turnDatabaseIntoPageAction(page.id);
+      router.refresh();
+    });
+  };
+
+  const handleExportPdf = () => {
+    onClose();
+    window.open(pageExportUrl(page.id, "pdf"), "_blank", "noopener,noreferrer");
+  };
+
   const handleMoveToSpace = (target: MenuSpace) => {
     onClose();
     startTransition(async () => {
@@ -316,6 +350,39 @@ export default function PageActionsMenu({
                   </button>
                 </div>
               </form>
+            ) : editMode === "export" ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setEditMode(null)}
+                  className="flex w-full items-center gap-1 px-3 py-1 text-left text-xs text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200"
+                >
+                  <ChevronLeft size={12} className="shrink-0" />
+                  Export
+                </button>
+                <a
+                  href={pageExportUrl(page.id, "markdown")}
+                  download
+                  onClick={onClose}
+                  className="flex w-full items-center gap-2 px-3 py-1 text-left text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                >
+                  <FileText size={13} className="shrink-0" />
+                  Markdown
+                </a>
+                <a
+                  href={pageExportUrl(page.id, "docx")}
+                  download
+                  onClick={onClose}
+                  className="flex w-full items-center gap-2 px-3 py-1 text-left text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                >
+                  <Notebook size={13} className="shrink-0" />
+                  Word (.docx)
+                </a>
+                <MenuItem onClick={handleExportPdf}>
+                  <FileType size={13} className="shrink-0" />
+                  PDF
+                </MenuItem>
+              </>
             ) : (
               <>
                 <MenuItem onClick={handleRename}>
@@ -341,6 +408,29 @@ export default function PageActionsMenu({
                 <MenuItem onClick={handleDuplicate}>
                   <Copy size={13} className="shrink-0" />
                   Duplicate
+                </MenuItem>
+                {page.is_database ? (
+                  <MenuItem onClick={handleTurnIntoPage}>
+                    <FileText size={13} className="shrink-0" />
+                    <span className="flex flex-col">
+                      Turn into page
+                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                        Properties are hidden, not deleted
+                      </span>
+                    </span>
+                  </MenuItem>
+                ) : (
+                  <MenuItem onClick={handleTurnIntoDatabase}>
+                    <Table2 size={13} className="shrink-0" />
+                    Turn into database
+                  </MenuItem>
+                )}
+                <MenuItem onClick={() => setEditMode("export")}>
+                  <Download size={13} className="shrink-0" />
+                  <span className="flex flex-1 items-center justify-between">
+                    Export
+                    <ChevronRight size={13} className="shrink-0 text-neutral-400" />
+                  </span>
                 </MenuItem>
                 {otherSpaces.map((space) => (
                   <MenuItem key={space.id} onClick={() => handleMoveToSpace(space)}>
