@@ -294,3 +294,48 @@
 .editor-prose .ProseMirror-gapcursor:after {
   border-top: 1px solid var(--foreground);
 }
+
+/* --- Block drag handle (extensions/drag-handle.ts) -------------------------
+   Lives on document.body and is positioned `fixed` from viewport rects, so no
+   ancestor overflow can clip it. Colors follow the --foreground color-mix
+   convention used above so light and dark both work. */
+.block-drag-handle {
+  position: fixed;
+  z-index: 40;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  cursor: grab;
+  user-select: none;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: color-mix(in srgb, var(--foreground) 40%, transparent);
+  background: transparent;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.block-drag-handle:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.block-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* The block being dragged: ProseMirror puts a NodeSelection on it. */
+.editor-prose .ProseMirror-selectednode {
+  outline: 2px solid color-mix(in srgb, var(--color-secondary) 55%, transparent);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+/* Drop indicator (StarterKit's dropcursor) — make it clearly visible. */
+.prosemirror-dropcursor-block {
+  background: var(--color-secondary) !important;
+  height: 2px !important;
+  border-radius: 1px;
+}

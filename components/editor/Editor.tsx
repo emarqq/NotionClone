@@ -27,6 +27,7 @@ import { Callout } from "./extensions/callout";
 import { Comment } from "./extensions/comment";
 import { Link } from "./extensions/link";
 import { ListExit } from "./extensions/list-exit";
+import { DragHandle } from "./extensions/drag-handle";
 import { MoveBlock } from "./extensions/move-block";
 import { PageMention } from "./extensions/page-mention";
 import { SelectAll } from "./extensions/select-all";
@@ -145,6 +146,7 @@ export default function Editor({
       BlockId,
       ListExit,
       MoveBlock,
+      DragHandle,
       SelectAll,
       Autocorrect,
       AutoCapitalize,
