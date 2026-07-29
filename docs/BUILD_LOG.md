@@ -59,3 +59,20 @@ account plus a Free-vs-Pro breakdown. Headline conclusions:
 
 ## Blocked — needs Erik
 _(nothing yet)_
+
+---
+
+## 2026-07-29 15:05 UTC — STARTED — Session 2 (Cowork, sandboxed): author the missing ROADMAP, then start the defect queue
+
+**Lock.** Previous lock timestamp was `2026-07-29T14:38:06Z`, 27 min stale at pickup →
+previous session died without committing (`git status` clean apart from an untracked
+`.claude/settings.local.json`). Lock taken at `2026-07-29T15:05:02Z`.
+
+**Environment.** Cowork sandboxed Linux VM. `node v22.22.3` / `npm 10.9.8` present;
+`docker`, `psql`, `supabase` all absent; no access to `:3000`/`:3777`. Per brief §3 this
+session ships code + unit tests only; anything DB- or UI-exercised is queued below.
+
+**Gap found on orientation.** `docs/plan/ROADMAP.md` **did not exist**, despite being
+referenced as the authoritative work queue by `docs/AUTONOMOUS_RUN_BRIEF.md` §1/§7 and by
+decision D-006. The 06:00 session was cut off before writing it. Every subsequent session
+would have had no queue to pull from, so writing it is item 1.

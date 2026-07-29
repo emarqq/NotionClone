@@ -119,3 +119,71 @@ autonomous session picking work off it. `notion-feature-ideas.md` is unfiltered
 brainstorm with no prioritisation and no distinction between "Notion does this" and
 "this would be neat". Erik has authorised cutting proposed features that are bad ideas;
 the roadmap is where that filtering is recorded.
+
+---
+
+### D-007 — Cross-page block-id theft is fixed on the server, not in the paste handler. (2026-07-29)
+
+**Context.** `CODE_REVIEW.md` §E1, VERIFIED at SQL level: `data-block-id` survives the OS
+clipboard, and `replacePageBlocks`'s `upsert(..., { onConflict: "id" })` sets
+`page_id: pageId` on conflict — so pasting a block copied from page A into page B *moves*
+the row, deleting the paragraph from page A with no error and no undo path. The previous
+review deferred this as "needs a human decision".
+
+**Decision.** Fix it in `replacePageBlocks`: an incoming block id whose row is already
+owned by a different page is **reminted** to a fresh uuid rather than adopted, and the
+remap is returned to the caller so the editor can rewrite its `blockId` attrs in place.
+No block row ever changes `page_id` through the editor save path.
+
+**Reasoning.** The three candidates were (a) strip `blockId` on paste, (b) strip only on
+cross-page paste, (c) guard server-side. (a) is wrong: the same ProseMirror paste path
+handles drag-and-drop, so it would remint ids on every drag and detach every
+`comment_threads.block_id` anchor (`20260707000000_inline_comments.sql:14`; they survive
+via `on delete set null`, but detached is still lost). (b) requires the client to know
+what the server owns — it cannot, without a round-trip, which is exactly the server check
+in (c). (c) also closes the hole for ids that arrive by any *other* route (import, AI
+tools, a future API), which (a) and (b) do not. The cost is one extra `select` per save,
+which B1 (diff-based writes) will reduce to only the ids that actually changed.
+
+**Consequence.** Roadmap A2. `replacePageBlocks` gains a return value; callers that
+ignore it are not wrong, only lossier (the pasted block keeps working, it just carries a
+new id on the next load).
+
+---
+
+### D-008 — There will be no tags UI; `tags`/`page_tags` are scheduled for removal. (2026-07-29)
+
+**Context.** `tags` and `page_tags` have existed since the initial schema with zero reads
+and zero writes, and `docs/FEATURE-PLAN.md` still lists a tags UI as planned work.
+
+**Decision.** Do not build it. Drop both tables in a later migration once a grep confirms
+nothing reads them.
+
+**Reasoning.** Notion has no global tag system — it has multi-select *properties* on
+database rows, which `db_property_options` and the database-pages work already implement
+(and which are strictly more useful, being per-database and typed). A parallel global tag
+namespace would be a second, weaker way to categorise the same pages, and every such
+duplicate surface is one more thing to keep consistent for a single user who did not ask
+for it. Inert schema is not free: it shows up in every schema read, every audit, and
+every future migration.
+
+---
+
+### D-009 — LLM and embedding fetches get default timeouts chosen by me, not by Erik. (2026-07-29)
+
+**Context.** `CODE_REVIEW.md` §L1. No `AbortSignal.timeout` anywhere in `lib/llm/`;
+`EmbeddingProvider.embed()` takes no signal at all. The 2026-07-26 session listed "what
+timeout is right" as needing Erik's decision, and therefore shipped nothing — leaving a
+HIGH-severity hang in place for three days over a number.
+
+**Decision.** 30 s per chat/generation request, 15 s per embedding call, both overridable
+via env (`LLM_TIMEOUT_MS`, `EMBEDDING_TIMEOUT_MS`). `EmbeddingProvider.embed()` takes an
+`AbortSignal` — an interface change, so the provider contract suite in `tests/llm/` is
+updated with it.
+
+**Reasoning.** These are engineering defaults, and engineering is mine to decide (brief
+preamble). A local 8B model on Erik's machine answers a first token in well under 30 s or
+it is wedged; embeddings are sub-second and 15 s is already 20× headroom. Any timeout at
+all is enormously better than the current behaviour, and a wrong-by-2× timeout is a
+tunable env var, not a defect. Blocking a HIGH data-availability fix on a preference
+question was the actual mistake.

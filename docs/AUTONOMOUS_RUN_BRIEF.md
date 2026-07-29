@@ -112,14 +112,18 @@ save-path data-loss bugs in §6. Treat stability as a feature, not a chore.
 
 These are load-bearing. Fix them before adding features — they actively lose Erik's data.
 
+> **Naming:** defects are `BUG-n`. Roadmap items are `A1`, `B2`, `D3`… Do not confuse the
+> two — an earlier draft numbered both `D1…D6` and it was genuinely ambiguous.
+
 | # | Defect | Where |
 |---|---|---|
-| D1 | **Cross-page block-id theft.** Copy a block from page A, paste into page B: the save upserts on the carried `data-block-id` and *reassigns* `page_id`, silently deleting the block from page A. Reproduced at SQL level. | `CODE_REVIEW.md` §E1 |
-| D2 | **Overlapping saves delete newly-typed blocks.** No in-flight guard; `replacePageBlocks` is a whole-document replace with a `NOT IN` delete. Two tabs on one page = last-writer-wins. | `components/editor/Editor.tsx:73-92`, `CODE_REVIEW.md` §E3 |
-| D3 | **No backups at all.** See `docs/audit/SUPABASE-PRO-LEVERAGE.md` §5 for the finished script + launchd plist + restore drill. | — |
-| D4 | **No timeout on any LLM/embedding fetch.** A wedged Ollama hangs every chat request forever. | `CODE_REVIEW.md` §L1 |
-| D5 | **Embedding-model switch silently mixes vector spaces.** `reconcileChunks` diffs on `content_hash` only. | `CODE_REVIEW.md` §R2 |
-| D6 | **Every save regenerates every block's position**, defeating fractional indexing. | `CODE_REVIEW.md` §E5 |
+| BUG-1 | **Cross-page block-id theft.** Copy a block from page A, paste into page B: the save upserts on the carried `data-block-id` and *reassigns* `page_id`, silently deleting the block from page A. Reproduced at SQL level. | `CODE_REVIEW.md` §E1 |
+| BUG-2 | **Overlapping saves delete newly-typed blocks.** No in-flight guard; `replacePageBlocks` is a whole-document replace with a `NOT IN` delete. Two tabs on one page = last-writer-wins. | `components/editor/Editor.tsx:73-92`, `CODE_REVIEW.md` §E3 |
+| BUG-3 | **No backups at all.** See `docs/audit/SUPABASE-PRO-LEVERAGE.md` §5 for the finished script + launchd plist + restore drill. | — |
+| BUG-4 | **No timeout on any LLM/embedding fetch.** A wedged Ollama hangs every chat request forever. | `CODE_REVIEW.md` §L1 |
+| BUG-5 | **Embedding-model switch silently mixes vector spaces.** `reconcileChunks` diffs on `content_hash` only. | `CODE_REVIEW.md` §R2 |
+| BUG-6 | **Every save regenerates every block's position**, defeating fractional indexing. | `CODE_REVIEW.md` §E5 |
+| BUG-7 | **"It keeps crashing."** Erik's most-repeated complaint. Known contributors: the `:3777` stale-build trap (§5), the BubbleMenu unmount crash on editor↔database swaps, and a stale AI-panel conversation id. Root-cause properly — see roadmap item **A5** — rather than assuming it is all §5. | roadmap A5 |
 
 ## 7. Architectural stance — decided, do not relitigate casually
 
