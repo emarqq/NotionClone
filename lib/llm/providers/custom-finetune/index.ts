@@ -66,7 +66,18 @@ async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<OpenAi
       }
     }
   } finally {
-    reader.releaseLock();
+    // Cancel rather than only releasing the lock — see the same note in
+    // providers/ollama.ts readNdjson.
+    try {
+      await reader.cancel();
+    } catch {
+      /* already errored or closed */
+    }
+    try {
+      reader.releaseLock();
+    } catch {
+      /* cancel() may have released it already */
+    }
   }
 }
 
@@ -156,7 +167,12 @@ export function createCustomFinetuneLLMProvider(): LLMProvider {
             `custom-finetune provider: generate request to ${baseUrl} failed (${res.status} ${res.statusText})`
           );
         }
-        const json = (await res.json()) as OpenAiCompletion;
+        let json: OpenAiCompletion;
+        try {
+          json = (await res.json()) as OpenAiCompletion;
+        } catch (err) {
+          throw describeFetchFailure("custom-finetune provider", url, deadline, err);
+        }
         return { text: json.choices?.[0]?.message?.content ?? "" };
       } finally {
         deadline.clear();

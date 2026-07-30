@@ -23,6 +23,24 @@ interface ChatRequestBody {
   spaceId?: string | null;
   /** Graph-RAG: also pull chunks from linked pages (see lib/rag/retriever). */
   graphExpand?: boolean;
+  /**
+   * Re-asking a question whose user turn is already in the conversation (the
+   * panel's "Ask again" after a failed turn). Without it every retry appends a
+   * second identical user message, which then pollutes `priorMessages` on every
+   * later turn.
+   */
+  isRetry?: boolean;
+}
+
+/**
+ * Strips the `_(response interrupted)_` / `_(response incomplete — …)_` markers
+ * that mark a truncated turn (§R1, D-011) before history is fed back to the
+ * model. They are UI annotations, not content: left in, the model reads its own
+ * previous answer as ending in an English sentence about a fetch failure and
+ * reasons about it.
+ */
+function stripInterruptionMarker(content: string): string {
+  return content.replace(/\n\n_\(response (?:interrupted|incomplete)[^)]*\)_\s*$/, "");
 }
 
 /** RetrievedSource plus the display metadata the panel needs to render a clickable citation. */
@@ -139,6 +157,8 @@ export async function POST(request: NextRequest) {
       try {
         let conversationId = body.conversationId;
         let priorMessages: ChatMessage[] = [];
+        /** True when this exact question is already the conversation's last user turn. */
+        let alreadyRecorded = false;
 
         // A client-supplied conversationId can be stale (e.g. persisted in
         // localStorage from before a deleted/reset conversation table) —
@@ -151,7 +171,16 @@ export async function POST(request: NextRequest) {
           const history = await getMessages(conversationId!);
           priorMessages = history
             .slice(-HISTORY_LIMIT)
-            .map((m) => ({ role: m.role, content: m.content }));
+            .map((m) => ({ role: m.role, content: stripInterruptionMarker(m.content) }));
+          // A retry re-sends a question that is already persisted. Match on the
+          // last *user* turn rather than trusting the flag alone, so a stale or
+          // spoofed `isRetry` can never make a genuinely new question go
+          // unrecorded — the failure mode of getting this wrong is a lost
+          // question, which is worse than a duplicated one.
+          if (body.isRetry) {
+            const lastUser = [...history].reverse().find((m) => m.role === "user");
+            alreadyRecorded = lastUser?.content === message;
+          }
         } else {
           const conversation = await createConversation(
             message.slice(0, TITLE_MAX_LENGTH),
@@ -163,7 +192,7 @@ export async function POST(request: NextRequest) {
           throw new Error("conversationId missing after conversation resolution");
         }
 
-        await addMessage(conversationId, "user", message);
+        if (!alreadyRecorded) await addMessage(conversationId, "user", message);
 
         const sources = await retrieve(message, {
           spaceId,
@@ -241,9 +270,9 @@ export async function POST(request: NextRequest) {
         }
 
         if (streamFailure) {
-          // `retryable` tells the panel it can re-send the same question: the
-          // user turn is already persisted, so a retry appends rather than
-          // duplicating.
+          // `retryable` tells the panel it can re-send the same question; the
+          // retry carries `isRetry` so the already-persisted user turn is not
+          // written twice.
           send({
             type: "error",
             message: streamFailure.message,

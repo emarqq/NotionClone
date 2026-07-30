@@ -293,3 +293,65 @@ describe("custom-finetune provider honours the deadline", () => {
     expect(res.detail).toMatch(/did not respond within 30ms/);
   });
 });
+
+// --- error classification --------------------------------------------------
+
+describe("describeFetchFailure preserves what the error actually was", () => {
+  it("passes an AbortError through unchanged, keeping its name", async () => {
+    // /api/ai/edit distinguishes "the user cancelled" from "something broke" by
+    // `err.name === "AbortError"`. Rewrapping an abort as a plain Error made an
+    // abort look like a failure, so the route wrote to a stream whose consumer was
+    // gone and threw `TypeError: Invalid state` out of its own catch handler.
+    process.env.LLM_TIMEOUT_MS = "10000";
+    vi.stubGlobal(
+      "fetch",
+      (_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("The operation was aborted.", "AbortError")),
+            { once: true }
+          );
+        })
+    );
+
+    const ac = new AbortController();
+    const pending = createOllamaLLMProvider().generate({ prompt: "q", signal: ac.signal });
+    ac.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("still labels a timeout as a timeout even though it arrives as an abort", async () => {
+    process.env.LLM_TIMEOUT_MS = "30";
+    stubHangingFetch();
+    await expect(createOllamaLLMProvider().generate({ prompt: "q" })).rejects.toThrow(
+      /timed out after 30ms/
+    );
+  });
+
+  it("reports malformed output as malformed, not as unreachable", async () => {
+    // readNdjson JSON.parses each line, so garbage from a *reachable* server used
+    // to surface as "failed to reach …" — and since D-011 writes the reason into
+    // the conversation, that wrong diagnosis ended up in Erik's notes.
+    process.env.LLM_TIMEOUT_MS = "10000";
+    vi.stubGlobal("fetch", async () => {
+      const enc = new TextEncoder();
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(enc.encode("this is not json at all\n"));
+            controller.close();
+          },
+        }),
+        { status: 200 }
+      );
+    });
+
+    const promise = collect(
+      createOllamaLLMProvider().chatStream({ messages: [{ role: "user", content: "hi" }] })
+    );
+    await expect(promise).rejects.toThrow(/malformed response/);
+    await expect(promise).rejects.not.toThrow(/failed to reach/);
+  });
+});

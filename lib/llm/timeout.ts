@@ -142,5 +142,27 @@ export function describeFetchFailure(
         `loading or the server is wedged. Raise LLM_TIMEOUT_MS / EMBEDDING_TIMEOUT_MS if this is expected.`
     );
   }
+  // A client abort must keep its identity. Callers distinguish "the user cancelled"
+  // from "something broke" by `err.name === "AbortError"` (app/api/ai/edit/route.ts),
+  // and rewrapping it as a plain Error made an abort look like a failure: the edit
+  // route then wrote to a stream whose consumer was gone and threw
+  // `TypeError: Invalid state` out of its own catch.
+  if (isAbortError(err)) return err as Error;
+  // Not every failure here is a transport failure — `readNdjson` / `readSse`
+  // JSON.parse their input, so malformed output from a *reachable* server would
+  // otherwise be reported as "failed to reach", and (since D-011 writes the reason
+  // into the conversation) that wrong diagnosis becomes part of Erik's notes.
+  if (err instanceof SyntaxError) {
+    return new Error(`${who}: malformed response from ${url}: ${err.message}`);
+  }
   return new Error(`${who}: failed to reach ${url}: ${(err as Error)?.message ?? String(err)}`);
+}
+
+/** True for a DOMException/Error raised by an aborted fetch or stream read. */
+function isAbortError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { name?: unknown }).name === "AbortError"
+  );
 }

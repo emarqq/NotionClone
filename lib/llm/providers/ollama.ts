@@ -66,7 +66,20 @@ async function* readNdjson(body: ReadableStream<Uint8Array>): AsyncGenerator<Oll
     const rest = buffer.trim();
     if (rest) yield JSON.parse(rest) as OllamaChatLine;
   } finally {
-    reader.releaseLock();
+    // Cancel, not merely release. A consumer that breaks out of the for-await
+    // (which `for await` turns into iterator.return(), so this block does run)
+    // would otherwise leave the response body unconsumed and the model still
+    // generating — the exact connection leak the deadlines exist to close.
+    try {
+      await reader.cancel();
+    } catch {
+      /* already errored or closed */
+    }
+    try {
+      reader.releaseLock();
+    } catch {
+      /* cancel() may have released it already */
+    }
   }
 }
 
@@ -146,7 +159,15 @@ export function createOllamaLLMProvider(): LLMProvider {
             `ollama provider: generate request to ${baseUrl} failed (${res.status} ${res.statusText})`
           );
         }
-        const json = (await res.json()) as OllamaChatLine;
+        // Also wrapped: fetch() resolves on headers, so a body-read timeout lands
+        // here — unwrapped it surfaced as a bare "This operation was aborted"
+        // with nobody reporting that a deadline had fired.
+        let json: OllamaChatLine;
+        try {
+          json = (await res.json()) as OllamaChatLine;
+        } catch (err) {
+          throw describeFetchFailure("ollama provider", `${baseUrl}/api/chat`, deadline, err);
+        }
         return { text: json.message?.content ?? "" };
       } finally {
         deadline.clear();
@@ -244,8 +265,19 @@ export function createOllamaEmbeddingProvider(): EmbeddingProvider {
             );
           }
           // Inside the deadline: fetch() resolves as soon as the headers arrive,
-          // so reading the body is its own opportunity to hang.
-          const json = (await res.json()) as OllamaEmbedResponse;
+          // so reading the body is its own opportunity to hang — and to time out,
+          // which must be reported as a timeout rather than as a bare abort.
+          let json: OllamaEmbedResponse;
+          try {
+            json = (await res.json()) as OllamaEmbedResponse;
+          } catch (err) {
+            throw describeFetchFailure(
+              "ollama embedding provider",
+              `${baseUrl}/api/embed`,
+              deadline,
+              err
+            );
+          }
           for (const vector of json.embeddings ?? []) {
             if (vector.length !== EMBED_DIMENSIONS) {
               throw new Error(

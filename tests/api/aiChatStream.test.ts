@@ -24,11 +24,15 @@ interface PersistedMessage {
 
 const persisted: PersistedMessage[] = [];
 let streamScript: () => AsyncIterable<ChatDelta>;
+/** Set to simulate an EXISTING conversation with history. */
+let existingHistory: { role: string; content: string }[] | null = null;
+/** What the provider was actually handed — for asserting on prompt history. */
+let seenMessages: { role: string; content: string }[] = [];
 
 vi.mock("@/lib/db/ai", () => ({
-  getConversation: vi.fn(async () => null),
+  getConversation: vi.fn(async () => (existingHistory ? { id: "conv-1" } : null)),
   createConversation: vi.fn(async () => ({ id: "conv-1" })),
-  getMessages: vi.fn(async () => []),
+  getMessages: vi.fn(async () => existingHistory ?? []),
   addMessage: vi.fn(async (conversationId: string, role: string, content: string) => {
     persisted.push({ conversationId, role, content });
   }),
@@ -45,7 +49,10 @@ vi.mock("@/lib/rag/prompt", () => ({
 vi.mock("@/lib/llm/registry", () => ({
   getLLMProvider: async () => ({
     id: "scripted",
-    chatStream: () => streamScript(),
+    chatStream: (req: { messages: { role: string; content: string }[] }) => {
+      seenMessages = req.messages;
+      return streamScript();
+    },
     generate: async () => ({ text: "" }),
     capabilities: () => ({ contextWindow: 8192, supportsJsonMode: true }),
     healthCheck: async () => ({ ok: true }),
@@ -72,11 +79,16 @@ interface SseEvent {
   retryable?: boolean;
 }
 
-async function post(signal?: AbortSignal): Promise<SseEvent[]> {
+async function post(
+  opts: { message?: string; isRetry?: boolean; conversationId?: string } = {}
+): Promise<SseEvent[]> {
   const request = new Request("http://localhost/api/ai/chat", {
     method: "POST",
-    body: JSON.stringify({ message: "what did we decide about X?" }),
-    ...(signal ? { signal } : {}),
+    body: JSON.stringify({
+      message: opts.message ?? "what did we decide about X?",
+      isRetry: opts.isRetry,
+      conversationId: opts.conversationId,
+    }),
   });
   // The route only uses `.json()` and `.signal`, both of which a plain Request has.
   const res = await POST(request as never);
@@ -98,6 +110,8 @@ function scripted(chunks: string[], failAfter?: Error) {
 
 beforeEach(() => {
   persisted.length = 0;
+  existingHistory = null;
+  seenMessages = [];
   scripted(["Hello", " world"]);
 });
 
@@ -180,5 +194,84 @@ describe("POST /api/ai/chat — provider fails mid-stream (§R1 / C2)", () => {
     scripted([], new Error("boom"));
     await post();
     expect(persisted.some((m) => m.role === "user")).toBe(true);
+  });
+});
+
+// --- the retry path (found by the review of C2, not by C2 itself) ----------
+
+describe("POST /api/ai/chat — retry of a failed turn", () => {
+  const QUESTION = "what did we decide about X?";
+
+  it("does NOT persist the question a second time", async () => {
+    // The bug: `addMessage(user)` was unconditional, so every "Ask again"
+    // appended a duplicate user turn — invisible in the panel (which slices its
+    // local list) but present after a reload, and thereafter fed into
+    // priorMessages on every later turn.
+    existingHistory = [
+      { role: "user", content: QUESTION },
+      { role: "assistant", content: "Partial\n\n_(response incomplete — boom)_" },
+    ];
+
+    await post({ conversationId: "conv-1", isRetry: true });
+
+    expect(persisted.filter((m) => m.role === "user")).toHaveLength(0);
+    expect(persisted.filter((m) => m.role === "assistant")).toHaveLength(1);
+  });
+
+  it("DOES persist the question when isRetry is set but the question is different", async () => {
+    // Trusting the flag alone would let a stale or spoofed `isRetry` silently
+    // drop a genuinely new question. Losing a question is worse than duplicating
+    // one, so the last user turn has to actually match.
+    existingHistory = [{ role: "user", content: "something else entirely" }];
+
+    await post({ conversationId: "conv-1", isRetry: true });
+
+    expect(persisted.filter((m) => m.role === "user")).toHaveLength(1);
+  });
+
+  it("persists the question normally when isRetry is absent", async () => {
+    existingHistory = [{ role: "user", content: QUESTION }];
+
+    await post({ conversationId: "conv-1" });
+
+    expect(persisted.filter((m) => m.role === "user")).toHaveLength(1);
+  });
+});
+
+// --- history hygiene -------------------------------------------------------
+
+describe("POST /api/ai/chat — interruption markers stay out of the model's context", () => {
+  it("strips the incomplete/interrupted marker from prior turns", async () => {
+    // The marker is a UI annotation (D-011). Left in the prompt, the model reads
+    // its own previous answer as ending in an English sentence about a fetch
+    // failure and reasons about it.
+    existingHistory = [
+      { role: "user", content: "earlier question" },
+      {
+        role: "assistant",
+        content: "Half an answer\n\n_(response incomplete — ollama provider: connection reset)_",
+      },
+      { role: "user", content: "another" },
+      { role: "assistant", content: "Also half\n\n_(response interrupted)_" },
+    ];
+
+    await post({ conversationId: "conv-1" });
+
+    const assistantTurns = seenMessages.filter((m) => m.role === "assistant");
+    expect(assistantTurns.map((m) => m.content)).toEqual(["Half an answer", "Also half"]);
+    for (const m of seenMessages) expect(m.content).not.toMatch(/_\(response/);
+  });
+
+  it("leaves a normal answer untouched", async () => {
+    existingHistory = [
+      { role: "user", content: "earlier" },
+      { role: "assistant", content: "A complete answer (with parens) and _emphasis_" },
+    ];
+
+    await post({ conversationId: "conv-1" });
+
+    expect(seenMessages.find((m) => m.role === "assistant")?.content).toBe(
+      "A complete answer (with parens) and _emphasis_"
+    );
   });
 });

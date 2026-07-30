@@ -56,6 +56,8 @@ export function useAiChat(onConversationId: (id: string) => void) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<AiChatError | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  /** Real mutual exclusion for sends. `isStreaming` is state and lags a task. */
+  const inFlightRef = useRef(false);
   /**
    * The arguments of the last send, so a failed turn can be retried without the
    * user retyping. Kept in a ref rather than state: it must not re-render, and it
@@ -81,10 +83,22 @@ export function useAiChat(onConversationId: (id: string) => void) {
       text: string,
       conversationId: string | null,
       spaceId: string | null,
-      graphExpand: boolean
+      graphExpand: boolean,
+      /**
+       * Re-asking a question whose user turn is already persisted. The server
+       * uses this to avoid writing the same question twice — see `isRetry` in
+       * app/api/ai/chat/route.ts.
+       */
+      isRetry = false
     ) => {
       const trimmed = text.trim();
-      if (!trimmed || isStreaming) return;
+      // `inFlightRef`, not `isStreaming`: both are guards, but `isStreaming` is
+      // state, so two calls inside a single task (a programmatic retry, a
+      // StrictMode double-invoked effect) would both read `false` and both fire —
+      // two POSTs, two persisted user turns, and `abortRef` overwritten so abort()
+      // only cancels the second. `isStreaming` stays, purely for rendering.
+      if (!trimmed || inFlightRef.current) return;
+      inFlightRef.current = true;
       setError(null);
       lastSendRef.current = { text: trimmed, conversationId, spaceId, graphExpand };
 
@@ -108,6 +122,7 @@ export function useAiChat(onConversationId: (id: string) => void) {
             message: trimmed,
             spaceId,
             graphExpand,
+            isRetry,
           }),
           signal: controller.signal,
         });
@@ -138,6 +153,14 @@ export function useAiChat(onConversationId: (id: string) => void) {
             const event = JSON.parse(json) as SseEvent;
             if (event.type === "meta") {
               onConversationId(event.conversationId);
+              // The first message of a conversation is sent with
+              // conversationId=null and the server mints one. Without writing it
+              // back here, a retry of that first turn would post null again and
+              // fork a SECOND conversation — orphaning the first, which is holding
+              // the partial answer the UI just promised had been saved.
+              if (lastSendRef.current) {
+                lastSendRef.current.conversationId = event.conversationId;
+              }
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantId ? { ...m, sources: event.sources } : m
@@ -179,8 +202,8 @@ export function useAiChat(onConversationId: (id: string) => void) {
           setError({
             message: (err as Error).message || "Something went wrong.",
             partial: false,
-            // A transport-level failure is always safe to re-send: either the
-            // server never saw the turn, or it saved it and a retry appends.
+            // Safe to re-send: the server either never saw the turn, or saved it
+            // and will recognise the retry rather than duplicating it.
             retryable: true,
           });
         }
@@ -190,11 +213,12 @@ export function useAiChat(onConversationId: (id: string) => void) {
           )
         );
       } finally {
+        inFlightRef.current = false;
         setIsStreaming(false);
         abortRef.current = null;
       }
     },
-    [isStreaming, onConversationId]
+    [onConversationId]
   );
 
   const abort = useCallback(() => {
@@ -210,15 +234,15 @@ export function useAiChat(onConversationId: (id: string) => void) {
    */
   const retry = useCallback(async () => {
     const last = lastSendRef.current;
-    if (!last || isStreaming) return;
+    if (!last || inFlightRef.current) return;
     // Drop the failed assistant turn from the *local* view so the retry does not
     // render two answers to one question. The persisted one is untouched.
     setMessages((prev) => {
       const lastUser = prev.map((m) => m.role).lastIndexOf("user");
       return lastUser === -1 ? prev : prev.slice(0, lastUser);
     });
-    await send(last.text, last.conversationId, last.spaceId, last.graphExpand);
-  }, [isStreaming, send]);
+    await send(last.text, last.conversationId, last.spaceId, last.graphExpand, true);
+  }, [send]);
 
   return { messages, isStreaming, error, send, retry, abort, load, clear };
 }
