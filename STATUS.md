@@ -4,7 +4,7 @@
 > Do not let this go stale — if it looks stale, the hook isn't wired up correctly.
 
 **Last updated:** 2026-07-30
-**Overall completion:** ~76% (ARCHITECTURE.md Phases 1–3 reached except the global search UI. **All four HIGH-severity defects a sandboxed session could reach are now fixed** — E1, E3, L1 and R1 — and roadmap C4 is written but its migration is unverified. Roughly half of FEATURE-PLAN.md remains. `docs/plan/ROADMAP.md` is the authoritative queue; percentages here are a rough feel, not a measure.)
+**Overall completion:** ~78% (ARCHITECTURE.md Phases 1–3 reached except the global search UI. **All four HIGH-severity defects a sandboxed session could reach are now fixed** — E1, E3, L1 and R1 — the AI surface's reliability items (C1, C2, C5) are done, and roadmap C4 is written but its migration is unverified. Roughly half of FEATURE-PLAN.md remains. `docs/plan/ROADMAP.md` is the authoritative queue; percentages here are a rough feel, not a measure.)
 
 > **The number to actually worry about is not this one.** There is still **no proven backup**
 > of the local database (roadmap A1). Every other line in this file describes an improvement
@@ -29,8 +29,9 @@
 - [x] **Meeting notes** — `createMeetingNoteAction` seeds an 8-block template (Details / Attendees / Agenda / Notes).
 - [x] **Theme system** — light/dark/system with no-flash hydration, accent color pickers, WCAG contrast foregrounds (`lib/theme/color.ts`).
 - [x] **Electron desktop shell** — `desktop/electron/`, loads a production build on :3777.
-- [x] **Test suite** — Vitest, `npm test`. **175 tests** (146 pass, 29 Docker-gated), up from 101 on 2026-07-26. The three files added on 2026-07-30 each pin a *specific historical data-loss bug*: `tests/db/replacePageBlocks.test.ts` (§E1 remint, §E6 delete scoping), `tests/llm/timeout.test.ts` (§L1, incl. that a slow-but-alive stream is NOT killed), `tests/api/aiChatStream.test.ts` (§R1), plus `tests/db/searchArchived.test.ts` (§R5, Docker-gated). Originally 101 tests (100 pass, 1 skip-guard) across the LLMProvider contract (all providers + a fake), the `hybrid_search` RPC against a disposable Postgres, the Stop hook's block/allow/bypass paths, the block-id parse rule, and the export walker. See "Testing" below.
+- [x] **Test suite** — Vitest, `npm test`. **208 tests** (179 pass, 29 Docker-gated), up from 101 on 2026-07-26. The three files added on 2026-07-30 each pin a *specific historical data-loss bug*: `tests/db/replacePageBlocks.test.ts` (§E1 remint, §E6 delete scoping), `tests/llm/timeout.test.ts` (§L1, incl. that a slow-but-alive stream is NOT killed), `tests/api/aiChatStream.test.ts` (§R1), plus `tests/db/searchArchived.test.ts` (§R5, Docker-gated). Originally 101 tests (100 pass, 1 skip-guard) across the LLMProvider contract (all providers + a fake), the `hybrid_search` RPC against a disposable Postgres, the Stop hook's block/allow/bypass paths, the block-id parse rule, and the export walker. See "Testing" below.
 - [x] **Cross-page block-id theft fixed** *(new 2026-07-29, CODE_REVIEW §E1)* — `replacePageBlocks` (`lib/db/blocks.ts`) now checks incoming ids against `blocks.page_id` and remints a fresh uuid for any id owned by another page, instead of silently re-parenting (and thereby deleting) the row out of its source page. `saveBlocksAction` returns the `{old→new}` remap; `Editor.tsx` rewrites the affected `blockId` attrs back into the doc via an out-of-history transaction so the next save doesn't remint again. Same pass replaced the string-concatenated `NOT IN` delete filter (CODE_REVIEW §E6, an injection-shaped query) with an explicit chunked id-list delete scoped to `page_id`.
+- [x] **Prompt hygiene** *(new 2026-07-30, CODE_REVIEW §R7/§L3/§R8/§L4, roadmap C5)* — retrieved notes go in delimited `<source>` blocks with the delimiters escaped inside content, and the system prompt tells the model to treat them as data; character caps on the question, each source, the total source budget, an edit selection and a rewrite instruction (over-long input gets a 413 naming the limit); the NDJSON/SSE readers distinguish a malformed record from a truncated stream; and `lib/llm/redact.ts` strips endpoint URLs from anything sent to the browser or written into the conversation, while the full message is logged server-side.
 - [x] **Deadlines on every LLM / embedding fetch** *(new 2026-07-30, CODE_REVIEW §L1, roadmap C1)* — `lib/llm/timeout.ts`. Both providers' `chatStream` / `generate` / `embed` / `healthCheck` now carry an `AbortSignal` that fires after a budget (30 s generation, 15 s embedding, 5 s health check, all env-overridable; `0` opts out). `EmbeddingProvider.embed()` takes a signal — an interface change — and `retrieve()` forwards the request's signal. For **streams the deadline is idle, not total**: refreshed on every chunk, so a long generation is never truncated (D-010).
 - [x] **Partial assistant replies survive a mid-stream provider failure** *(new 2026-07-30, CODE_REVIEW §R1, roadmap C2)* — the failure is held instead of rethrown, whatever streamed is persisted tagged `_(response incomplete — <reason>)_`, and the SSE `error` event carries `partial` + `retryable` so the panel says the partial was saved and offers **Ask again**.
 - [x] **Overlapping-save data loss fixed** *(new 2026-07-29, CODE_REVIEW §E3)* — `Editor.tsx`'s `flush()` now guards against concurrent saves with `savingRef`/`saveSeqRef`: at most one `saveBlocksAction` in flight, stale responses are ignored by sequence number, `dirty` clears only if the doc hasn't changed since the snapshot was taken, and edits that arrive mid-save are flushed immediately on completion instead of waiting for another keystroke.
@@ -56,7 +57,6 @@
 
 - **Switching the embedding model silently mixes vector spaces (HIGH).** `reconcileChunks` diffs on `content_hash` only and never checks `embedding_model`. CODE_REVIEW.md §R2.
 - `healthCheck()` and `capabilities()` are fully implemented on both providers but have **zero call sites**; there is no health endpoint. `capabilities()` also returns a hardcoded `contextWindow: 8192` regardless of the configured model.
-- `components/editor/OutlinePanel.tsx:47` scans h1–h3 only, so H4 headings — which the slash menu can insert — never appear in the outline.
 - **No proven backup of the local database (HIGHEST).** Roadmap A1. The script, launchd plist and restore drill are written out in `docs/audit/SUPABASE-PRO-LEVERAGE.md` §5 and none of it is installed. A `db reset` on 2026-07-07 already destroyed a whole space.
 - **`replacePageBlocks` is still not transactional.** Upsert → delete → touch is three round-trips; a failure between them resurrects deleted blocks as phantoms. Roadmap A4, `CODE_REVIEW.md` §E4 — needs a Postgres function, so a Mac session.
 - **A Cmd-W landing inside a save round-trip can lose the last keystrokes.** The unmount/`pagehide` flush is a no-op while a save is in flight, because starting a second overlapping save is BUG-2. Closes with B1 + B2, not by removing the guard. See `docs/BUILD_LOG.md`.
@@ -69,12 +69,12 @@
 ## Next concrete action
 **Install the backup system and run the restore drill** (roadmap A1; script, plist and drill already written in `docs/audit/SUPABASE-PRO-LEVERAGE.md` §5). This is a Mac-session task and it outranks everything else in the queue, including verifying C4's migration: an unbacked-up database makes every other improvement provisional. Record the drill result in `docs/BUILD_LOG.md` — until that line exists, assume there are no backups.
 
-Then, in order: apply C4's migration on the **scratch** container and unskip its tests; A4 (transactional reconcile); A5 (root-cause "it keeps crashing" from the real Electron logs, rather than assuming it is all the `:3777` stale-build trap).
+Then, in order: apply C4's migration on the **scratch** container and unskip its tests; A4 (transactional reconcile); A5 (root-cause "it keeps crashing" from the real Electron logs, rather than assuming it is all the `:3777` stale-build trap). After Phase A, the highest-value *feature* is D1 (a ⌘K palette over `hybrid_search`, which has been test-covered and UI-less since 2026-07-26).
 
 ## Testing
 
 ```bash
-npm test          # vitest run  (175 tests: 146 pass, 29 skip without Docker)
+npm test          # vitest run  (208 tests: 179 pass, 29 skip without Docker)
 npm run typecheck # tsc --noEmit
 npm run lint      # eslint
 npm run build     # next build

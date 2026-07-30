@@ -135,7 +135,7 @@ These do not lose data but they are why the app feels broken.
       the re-embed script that `STATUS.md` has listed as missing since 2026-07-26.
 - [~] **C4 🧪 — Filter archived pages out of retrieval**  ⚠️ code + 11 tests written `cff7583` (2026-07-30), **migration UNVERIFIED — needs a Mac session to apply on the scratch container.** File chunks on an archived page are excluded too (D-012). (`§R5`) — archived pages are
       currently retrieved and cited. One `is_archived` predicate in both search RPCs.
-- [ ] **C5 🧪 — Prompt hygiene:** delimit system / retrieved-context / user question
+- [x] **C5 🧪 — Prompt hygiene:** ✅ `9dd2a22` (2026-07-30). Delimited + escaped source blocks, char caps (question/source/total/edit selection), split malformed-vs-truncated stream parsing, and `lib/llm/redact.ts` stripping endpoints from anything sent to the browser *or* written into the conversation. 33 tests. delimit system / retrieved-context / user question
       (`§R7`), cap prompt size (`§L3`), handle the unguarded `JSON.parse` in the Ollama
       NDJSON reader (`§R8`), stop echoing internal base URLs to the browser (`§L4`).
 
@@ -169,7 +169,7 @@ Ordered by *frequency of daily friction*, not by how impressive they are.
 - [ ] **D5 — Columns / multi-column layout.** Blocked on B3.
 - [ ] **D6 — Code-block syntax highlighting, equation blocks.** Small, self-contained,
       high visual payoff. Do them when a bigger item is blocked.
-- [ ] **D7 — Outline panel: include H4** (`OutlinePanel.tsx:47` scans h1–h3 only, but the
+- [x] **D7 — Outline panel: include H4** ✅ (2026-07-30). Scans h1–h4; `level` widened to `1|2|3|4`, indent falls out of the existing formula. Original text: (`OutlinePanel.tsx:47` scans h1–h3 only, but the
       slash menu inserts H4). One-line fix; bundle it with any nearby work.
 
 ---

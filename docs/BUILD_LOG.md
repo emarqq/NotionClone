@@ -326,3 +326,62 @@ evaluate after `WHERE`. Still **UNVERIFIED** — never executed.
   should mark descendants and `getPageTree` should stop re-parenting orphans to the space
   root. That is a behaviour change to page management, so it belongs in its own item, not
   smuggled into a retrieval fix.
+
+---
+
+## 2026-07-30 01:52 UTC — FINISHED — C5 (prompt hygiene) — `9dd2a22`
+
+Four small items, none of which had been touched: §R7 (no delimiting around
+retrieved context), §L3 (no prompt-size cap anywhere), §R8 (unguarded `JSON.parse`
+in both stream readers), §L4 (internal base URLs echoed to the browser). Detail is
+in the commit message; the three things worth remembering:
+
+- **The delimiters are only worth having because the content is escaped.** A note
+  containing `</sources>` would otherwise close the data block early and everything
+  after it would read as top-level prompt. `neutralizeDelimiters` runs on titles,
+  headings, bodies *and* the user's own question.
+- **The size caps drop sources from the tail but always keep the top-ranked one**,
+  even if it alone blows the budget. Sending zero sources makes the assistant answer
+  "I don't have that in your notes" for a question it demonstrably has a hit for,
+  which is a worse failure than one truncated excerpt. The source *list* sent to the
+  UI is deliberately not capped — it is the mitigation for hallucinated citations.
+- **§R8 is split by cause.** A newline-terminated NDJSON line is a complete record,
+  so a parse failure is the server's fault and raises `MalformedResponseError`;
+  trailing bytes with no newline are the signature of a truncated stream, so a
+  partial final record is dropped silently. Throwing there would turn a clean
+  truncation into an error and tag the user's saved answer (§R1) with a parse error
+  that explains nothing.
+
+## 2026-07-30 01:55 UTC — FINISHED — D7 (outline panel includes H4)
+
+`OutlinePanel.tsx` scanned `h1–h3` while `Editor.tsx` configures StarterKit with
+`levels: [1, 2, 3, 4]` and the slash menu inserts H4 — so a heading the app
+happily creates never appeared in its own outline. Scan widened, `level` type
+widened to `1|2|3|4`, indentation falls out of the existing
+`12 + (level - 1) * 12` formula. Untested and untestable from here (it reads the
+rendered ProseMirror DOM); it is three lines and typechecks, and the risk of being
+wrong is a wrong indent.
+
+---
+
+## Session 3 final state — 2026-07-30
+
+**11 commits.** Roadmap **A2, A3, C1, C2, C5, D7** closed; **C4** written with an
+unverified migration. Every remaining Phase A/B/C item needs the Mac.
+
+**Test suite 101 → 208** (179 passing, 29 Docker-gated), across 11 files. Six of
+the new files exist to pin a *specific* historical defect rather than to add
+coverage: `replacePageBlocks` (§E1/§E6), `timeout` (§L1/§R8), `aiChatStream`
+(§R1/§L3/§L4 + the retry defects), `prompt` (§R7/§L3), `redact` (§L4),
+`searchArchived` (§R5, gated).
+
+**Read this before starting the next session:**
+1. **A1 (backups + restore drill) outranks everything**, including verifying C4.
+   There is still no proven backup of Erik's notes.
+2. The **"Needs a Mac session"** list above is the queue for a Claude Code session;
+   the items say what to check, not just "test it".
+3. Two findings were deliberately left unfixed with reasons recorded — the
+   in-flight-save window on Cmd-W (**do not fix by removing the serialization
+   guard**) and the `archivePage` per-page vs exporter-subtree disagreement.
+4. Decisions this session: **D-010** (idle stream deadlines), **D-011** (in-body
+   interruption marker), **D-012** (archiving hides attachments).

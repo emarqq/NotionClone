@@ -10,7 +10,13 @@ const EDITOR_POLL_MS = 200;
 interface OutlineEntry {
   id: string;
   text: string;
-  level: 1 | 2 | 3;
+  /**
+   * H4 is included because the slash menu can insert one (StarterKit is
+   * configured with `heading: { levels: [1, 2, 3, 4] }` in Editor.tsx). Scanning
+   * only h1–h3 meant a heading the app happily creates never appeared in its own
+   * outline (roadmap D7, STATUS "known issues").
+   */
+  level: 1 | 2 | 3 | 4;
 }
 
 function entriesEqual(a: OutlineEntry[], b: OutlineEntry[]): boolean {
@@ -45,7 +51,7 @@ export default function OutlinePanel({ pageId }: { pageId: string }) {
 
     const scan = () => {
       const headings = container.querySelectorAll<HTMLElement>(
-        ".ProseMirror h1, .ProseMirror h2, .ProseMirror h3"
+        ".ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4"
       );
       const next: OutlineEntry[] = [];
       headings.forEach((el) => {
@@ -54,7 +60,7 @@ export default function OutlinePanel({ pageId }: { pageId: string }) {
         next.push({
           id,
           text: (el.textContent ?? "").trim(),
-          level: Number(el.tagName.charAt(1)) as 1 | 2 | 3,
+          level: Number(el.tagName.charAt(1)) as 1 | 2 | 3 | 4,
         });
       });
       setEntries((prev) => (entriesEqual(prev, next) ? prev : next));
