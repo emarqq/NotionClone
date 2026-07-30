@@ -36,18 +36,27 @@ function scheduleCommentSync(pageId: string): void {
   );
 }
 
-/** Persists the full ordered block set of a page (reconciliation upsert+delete). */
+/**
+ * Persists the full ordered block set of a page (reconciliation upsert+delete).
+ *
+ * `remapped` is non-empty when a block arrived carrying an id owned by another
+ * page — a cross-page copy-paste. The server reminted those ids rather than
+ * stealing the rows (D-007); the editor must write the new ids back into its
+ * `blockId` attrs, or every subsequent save will remint again and churn the row.
+ */
 export async function saveBlocksAction(
   pageId: string,
   blocks: BlockInput[]
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; remapped?: Record<string, string> }> {
   try {
-    await replacePageBlocks(pageId, blocks);
+    const { remapped } = await replacePageBlocks(pageId, blocks);
     scheduleIngest(pageId);
     scheduleLinkSync(pageId);
     scheduleCommentSync(pageId);
     scheduleExport(pageId);
-    return { ok: true };
+    return Object.keys(remapped).length > 0
+      ? { ok: true, remapped }
+      : { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }

@@ -63,6 +63,13 @@ export default function Editor({
   const docRef = useRef<PMNode | null>(null);
   const dirtyRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** True while a save request is in flight. Guarantees at most one at a time. */
+  const savingRef = useRef(false);
+  /** Monotonic id of the newest save; older responses are ignored. */
+  const saveSeqRef = useRef(0);
+  /** Latest `flush`, so the in-flight completion handler never calls a stale one. */
+  const flushRef = useRef<() => void>(() => {});
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null);
 
   // Build the initial doc once from the server-loaded rows.
   const initialDoc = useMemo(
@@ -71,26 +78,85 @@ export default function Editor({
     []
   );
 
+  /**
+   * Rewrites `blockId` attrs the server reminted because they belonged to
+   * another page (cross-page paste — see D-007). Without this the editor keeps
+   * sending the stolen id, the server reminds again on every save, and the row
+   * churns a new uuid each time (detaching comment anchors as it goes).
+   *
+   * Dispatched outside the undo history and tagged so `onUpdate` does not treat
+   * it as a user edit.
+   */
+  const applyBlockIdRemap = useCallback((remap: Record<string, string>) => {
+    const ed = editorRef.current;
+    if (!ed || ed.isDestroyed) return;
+    const { state } = ed;
+    const tr = state.tr;
+    let changed = false;
+    state.doc.descendants((node, pos) => {
+      const id: unknown = node.attrs?.blockId;
+      if (typeof id === "string" && remap[id]) {
+        tr.setNodeAttribute(pos, "blockId", remap[id]);
+        changed = true;
+      }
+    });
+    if (!changed) return;
+    tr.setMeta("addToHistory", false);
+    tr.setMeta("blockIdRemap", true);
+    ed.view.dispatch(tr);
+    // Keep the snapshot we compare against in sync with the doc we just edited.
+    docRef.current = ed.state.doc;
+  }, []);
+
   const flush = useCallback(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
     if (!dirtyRef.current || !docRef.current) return;
-    dirtyRef.current = false;
-    const blocks = blocksFromDoc(docRef.current);
+    // A save is already in flight. Do not start a second one: `replacePageBlocks`
+    // is a whole-document replace with a delete pass, so if the older request
+    // landed last it would delete blocks that exist only in the newer snapshot —
+    // i.e. silently destroy text the user just typed (CODE_REVIEW §E3).
+    // The in-flight save re-runs this on completion.
+    if (savingRef.current) return;
+
+    savingRef.current = true;
+    const seq = ++saveSeqRef.current;
+    const snapshot = docRef.current;
+    const blocks = blocksFromDoc(snapshot);
     setSaveState("saving");
+
     saveBlocksAction(pageId, blocks)
       .then((result) => {
-        // Newer edits arrived while saving: stay in "pending".
-        if (dirtyRef.current) return;
-        setSaveState(result.ok ? "saved" : "error");
+        // A newer save superseded this one; its response is authoritative.
+        if (seq !== saveSeqRef.current) return;
+        if (!result.ok) {
+          setSaveState("error");
+          return;
+        }
+        // Clear `dirty` only if nothing changed since we took the snapshot —
+        // it must be cleared on *completion*, never on save start.
+        if (docRef.current === snapshot) dirtyRef.current = false;
+        if (result.remapped) applyBlockIdRemap(result.remapped);
+        setSaveState(dirtyRef.current ? "pending" : "saved");
       })
       .catch(() => {
-        dirtyRef.current = true;
-        setSaveState("error");
+        if (seq === saveSeqRef.current) setSaveState("error");
+      })
+      .finally(() => {
+        savingRef.current = false;
+        // Edits arrived while we were saving — persist them now, rather than
+        // waiting for a keystroke that may never come.
+        if (dirtyRef.current) {
+          timerRef.current = setTimeout(() => flushRef.current(), 0);
+        }
       });
-  }, [pageId]);
+  }, [pageId, applyBlockIdRemap]);
+
+  useEffect(() => {
+    flushRef.current = flush;
+  }, [flush]);
 
   const scheduleSave = useCallback(
     (doc: PMNode) => {
@@ -216,8 +282,15 @@ export default function Editor({
         return true;
       },
     },
-    onUpdate: ({ editor: e }) => scheduleSave(e.state.doc),
+    onUpdate: ({ editor: e, transaction }) => {
+      // Our own block-id rewrite is not a user edit; re-marking the doc dirty
+      // here would queue a redundant save on every remap.
+      if (transaction.getMeta("blockIdRemap")) return;
+      scheduleSave(e.state.doc);
+    },
   });
+
+  editorRef.current = editor;
 
   const label =
     saveState === "pending" || saveState === "saving"

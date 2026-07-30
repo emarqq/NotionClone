@@ -3,8 +3,8 @@
 > Updated automatically by Claude Code at the end of each session (enforced by the Stop hook).
 > Do not let this go stale — if it looks stale, the hook isn't wired up correctly.
 
-**Last updated:** 2026-07-27
-**Overall completion:** ~73% (ARCHITECTURE.md Phases 1–3 reached except the global search UI; block drag-reorder now shipped. Roughly half of FEATURE-PLAN.md remains. The three previously-unmerged feature branches are now merged into `main`.)
+**Last updated:** 2026-07-29
+**Overall completion:** ~74% (ARCHITECTURE.md Phases 1–3 reached except the global search UI; block drag-reorder now shipped, and the two HIGH-severity editor data-loss bugs (E1, E3) are fixed. Roughly half of FEATURE-PLAN.md remains. The three previously-unmerged feature branches are now merged into `main`.)
 
 ## What's actually built
 - [x] **Auth + session** — email/password login (`app/login/page.tsx`), session refresh and redirect-to-login in `middleware.ts` → `lib/supabase/middleware.ts`, RLS policies on **all 21 tables** (the last four were added 2026-07-26).
@@ -26,6 +26,8 @@
 - [x] **Theme system** — light/dark/system with no-flash hydration, accent color pickers, WCAG contrast foregrounds (`lib/theme/color.ts`).
 - [x] **Electron desktop shell** — `desktop/electron/`, loads a production build on :3777.
 - [x] **Test suite** *(new 2026-07-26)* — Vitest, `npm test`. 101 tests (100 pass, 1 skip-guard) across the LLMProvider contract (all providers + a fake), the `hybrid_search` RPC against a disposable Postgres, the Stop hook's block/allow/bypass paths, the block-id parse rule, and the export walker. See "Testing" below.
+- [x] **Cross-page block-id theft fixed** *(new 2026-07-29, CODE_REVIEW §E1)* — `replacePageBlocks` (`lib/db/blocks.ts`) now checks incoming ids against `blocks.page_id` and remints a fresh uuid for any id owned by another page, instead of silently re-parenting (and thereby deleting) the row out of its source page. `saveBlocksAction` returns the `{old→new}` remap; `Editor.tsx` rewrites the affected `blockId` attrs back into the doc via an out-of-history transaction so the next save doesn't remint again. Same pass replaced the string-concatenated `NOT IN` delete filter (CODE_REVIEW §E6, an injection-shaped query) with an explicit chunked id-list delete scoped to `page_id`.
+- [x] **Overlapping-save data loss fixed** *(new 2026-07-29, CODE_REVIEW §E3)* — `Editor.tsx`'s `flush()` now guards against concurrent saves with `savingRef`/`saveSeqRef`: at most one `saveBlocksAction` in flight, stale responses are ignored by sequence number, `dirty` clears only if the doc hasn't changed since the snapshot was taken, and edits that arrive mid-save are flushed immediately on completion instead of waiting for another keystroke.
 
 ## What's in progress
 - [ ] **Life OS surface** — `projects` / `goals` / `goal_checkins` / `study_items` exist and now have RLS matching every other table, but **no app code reads or writes them yet**.
@@ -42,10 +44,8 @@
 - [ ] **Re-embed / migration script** for changing the embedding model — now more urgent, see CODE_REVIEW R2.
 
 ## Known issues / broken right now
-> Two long-standing entries here were **wrong** and have been removed — see the session log.
+> Two long-standing entries here were **wrong** and have been removed — see the session log. Two more (E1, E3) were fixed 2026-07-29 — see "What's actually built".
 
-- **Data loss on cross-page block copy-paste (HIGH, verified).** Copying a whole block from page A and pasting it into page B carries `data-block-id` through the clipboard; the save then upserts on that id and **reassigns the row's `page_id`**, deleting the block from page A with no error. Reproduced at the SQL level (page A went 1 block → 0). Needs a design decision — see CODE_REVIEW.md §E1.
-- **Overlapping saves can delete newly typed blocks (HIGH).** `Editor.tsx:73-92` has no in-flight guard and `replacePageBlocks` is a whole-document replace with a `NOT IN` delete. Two tabs on one page is likewise last-writer-wins. CODE_REVIEW.md §E3.
 - **No timeout on any LLM/embedding fetch (HIGH).** A wedged Ollama hangs every `/api/ai/chat` request forever, because retrieval → `embed()` runs first and `EmbeddingProvider.embed()` takes no signal. CODE_REVIEW.md §L1.
 - **A partial assistant reply is lost if the provider errors mid-stream (HIGH).** CODE_REVIEW.md §R1.
 - **Switching the embedding model silently mixes vector spaces (HIGH).** `reconcileChunks` diffs on `content_hash` only and never checks `embedding_model`. CODE_REVIEW.md §R2.
@@ -56,7 +56,7 @@
 - Ollama was not running during this session, so the RAG/chat paths were not exercised live (the fire-and-forget ingest logged `failed to reach http://localhost:11434`, as expected).
 
 ## Next concrete action
-Decide on CODE_REVIEW.md §E1 (cross-page block-id theft). My recommendation is the server-side fix — make `replacePageBlocks` refuse to adopt a row already owned by another page — because it closes the hole regardless of how the id arrived and leaves drag/comment-anchoring behaviour untouched.
+E1 is resolved (server-side fix, as recommended). Decide on CODE_REVIEW.md §L1 next (no timeout on any LLM/embedding fetch — a wedged Ollama hangs `/api/ai/chat` forever) — specifically whether `EmbeddingProvider.embed()` should take an `AbortSignal`, since that's an interface change touching both providers.
 
 ## Testing
 
@@ -81,6 +81,9 @@ npm run build     # next build
 - **Repo-local tooling**: `.claude/hooks/enforce-status-update.sh` is a Stop hook that blocks ending a session with a dirty tree unless STATUS.md was touched (bypass: `touch /tmp/.skip-status-check`). `.claude/agents/codebase-architect.md` is a read-only architecture-explainer subagent.
 
 ## Session log
+
+### 2026-07-29 — E1/E3 editor fixes (uncommitted, branch `claude/overnight-2026-07-26`)
+Implemented the server-side fix for CODE_REVIEW §E1 recommended in the prior session's "Next concrete action": `replacePageBlocks` (`lib/db/blocks.ts`) now detects incoming block ids already owned by another page and remints them instead of re-parenting the row, closing the cross-page-paste data-loss hole; `saveBlocksAction`/`Editor.tsx` plumb the id remap back into the live ProseMirror doc. Same pass fixed §E3 (concurrent-save race that could delete newly typed blocks) with an in-flight/sequence guard in `Editor.tsx`, and §E6 (injection-shaped string-concatenated delete filter) with a chunked explicit-id-list delete. Verified `npm run typecheck` (clean) and `npm test` (82 passed, 19 skipped — Docker-dependent, expected) before writing this entry. Changes are in the working tree, **not yet committed**.
 
 ### 2026-07-26/27 — unattended overnight run (branch `claude/overnight-2026-07-26`, 4 commits, NOT merged)
 

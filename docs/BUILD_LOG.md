@@ -76,3 +76,43 @@ session ships code + unit tests only; anything DB- or UI-exercised is queued bel
 referenced as the authoritative work queue by `docs/AUTONOMOUS_RUN_BRIEF.md` §1/§7 and by
 decision D-006. The 06:00 session was cut off before writing it. Every subsequent session
 would have had no queue to pull from, so writing it is item 1.
+
+**Roadmap authored.** `docs/plan/ROADMAP.md` (committed in `1275785`) plus
+`docs/audit/NOTION-FEATURE-MATRIX.md`. Phases A–E + M, with the ordering principle
+*stop losing data → stop crashing → remove the structural ceiling → close the parity gaps
+Erik hits daily → everything else*, and an explicit **Cut** section so no later session
+re-adds sharing/multiplayer/hosted-primary/Notion-sync from the stale planning docs.
+
+---
+
+## 2026-07-30 01:04 UTC — STARTED — Session 3 (Cowork, sandboxed): land A2/A3, then the Phase C queue
+
+**Lock.** Previous timestamp `2026-07-29T23:57:38Z`, **67 min stale** at pickup → the
+previous session died mid-item without committing. Lock taken at `2026-07-30T01:04:34Z`.
+
+**Inherited working tree.** Four modified files, uncommitted:
+`lib/db/blocks.ts`, `app/actions/editor.ts`, `components/editor/Editor.tsx`, `STATUS.md`.
+Reviewed the full diff before touching anything: it is a complete, coherent
+implementation of **A2** (server-side block-id remint, exactly as decided in D-007) and
+**A3** (in-flight mutex + monotonic save sequence), plus **§E6** (the
+string-concatenated `NOT IN` delete filter replaced with a chunked explicit id list).
+It matches the roadmap and the decision log rather than diverging from them, so the call
+is **finish it, not stash it** (brief §1 step 5).
+
+**Environment.** Cowork sandboxed Linux VM. `node v22.22.3` / `npm 10.9.8`;
+no `docker`, no `psql`, no `supabase`, no access to `:3000`/`:3777`.
+
+**Toolchain note — `npm test` was broken in the sandbox and is now unblocked.**
+`node_modules/` is shared over the mount and was installed on the Mac, so it carries
+only `@rolldown/binding-darwin-arm64`; vitest 4 loads rolldown natively and died with
+`MODULE_NOT_FOUND: ./rolldown-binding.linux-arm64-gnu.node`. Fixed **without touching the
+repo** by installing `@rolldown/binding-linux-arm64-gnu@1.1.5` into a sandbox-local
+`node_modules` on a parent path (`/sessions/<id>/node_modules`), which Node's upward
+resolution finds from `node_modules/rolldown/dist/shared/`. Nothing in the repo or in
+Erik's install changed. **Any future sandboxed session must redo this one-liner** or it
+will wrongly conclude the test suite is unrunnable and skip rule §4:
+```bash
+mkdir -p /sessions/<session>/node_modules && cd /tmp && npm init -y \
+  && npm i @rolldown/binding-linux-arm64-gnu@1.1.5 \
+  && cp -r node_modules/@rolldown /sessions/<session>/node_modules/
+```
