@@ -93,10 +93,17 @@ export default function Editor({
     const { state } = ed;
     const tr = state.tr;
     let changed = false;
-    state.doc.descendants((node, pos) => {
+    // Top level only, deliberately. `blocksFromDoc` persists one row per
+    // top-level node, so the server can only ever remint a top-level id — and a
+    // walk over `descendants` would also rewrite a *nested* node that happened to
+    // carry the same id (possible right after a duplicating paste). That nested
+    // attr lives inside its parent's `content` JSON, and since this transaction
+    // is tagged so `onUpdate` ignores it, the change would never be marked dirty
+    // and never be saved: an edit silently lost.
+    state.doc.forEach((node, offset) => {
       const id: unknown = node.attrs?.blockId;
       if (typeof id === "string" && remap[id]) {
-        tr.setNodeAttribute(pos, "blockId", remap[id]);
+        tr.setNodeAttribute(offset, "blockId", remap[id]);
         changed = true;
       }
     });
@@ -121,24 +128,55 @@ export default function Editor({
     // The in-flight save re-runs this on completion.
     if (savingRef.current) return;
 
+    const snapshot = docRef.current;
+    // Serialize BEFORE claiming the in-flight slot. `blocksFromDoc` is
+    // synchronous and can throw (it walks the doc, JSON round-trips it and
+    // generates fractional positions); if it threw after `savingRef` was set,
+    // the flag would never be cleared and every later flush would return at the
+    // guard above — the editor would silently stop saving forever while the
+    // indicator sat on "Saving…".
+    let blocks: ReturnType<typeof blocksFromDoc>;
+    try {
+      blocks = blocksFromDoc(snapshot);
+    } catch {
+      setSaveState("error");
+      return;
+    }
+
     savingRef.current = true;
     const seq = ++saveSeqRef.current;
-    const snapshot = docRef.current;
-    const blocks = blocksFromDoc(snapshot);
     setSaveState("saving");
+
+    // Whether to immediately re-flush edits that arrived mid-save. Only on
+    // success: rescheduling after a failure produced an unbounded 0 ms retry loop
+    // against the database for as long as the failure lasted (dirty is no longer
+    // cleared on failure, so the condition stayed true forever) — and it outlived
+    // unmount, because nothing cancels a timer set after cleanup has run.
+    let succeeded = false;
 
     saveBlocksAction(pageId, blocks)
       .then((result) => {
         // A newer save superseded this one; its response is authoritative.
+        // Unreachable while `savingRef` serializes saves — kept as belt and
+        // braces, since the cost of being wrong here is deleted text.
         if (seq !== saveSeqRef.current) return;
         if (!result.ok) {
           setSaveState("error");
           return;
         }
+        succeeded = true;
         // Clear `dirty` only if nothing changed since we took the snapshot —
         // it must be cleared on *completion*, never on save start.
         if (docRef.current === snapshot) dirtyRef.current = false;
-        if (result.remapped) applyBlockIdRemap(result.remapped);
+        if (result.remapped) {
+          // Never let a remap failure report a save that actually succeeded as an
+          // error — the write landed; only the local attr rewrite did not.
+          try {
+            applyBlockIdRemap(result.remapped);
+          } catch {
+            /* next save re-mints; the row is safe either way */
+          }
+        }
         setSaveState(dirtyRef.current ? "pending" : "saved");
       })
       .catch(() => {
@@ -147,8 +185,13 @@ export default function Editor({
       .finally(() => {
         savingRef.current = false;
         // Edits arrived while we were saving — persist them now, rather than
-        // waiting for a keystroke that may never come.
-        if (dirtyRef.current) {
+        // waiting for a keystroke that may never come. On failure we deliberately
+        // wait for the next edit instead of retrying in a loop.
+        if (succeeded && dirtyRef.current) {
+          // Clear first: `scheduleSave` may have installed a debounce timer while
+          // we were in flight, and overwriting the handle would orphan that timer
+          // — it would still fire, and unmount cleanup could no longer cancel it.
+          if (timerRef.current) clearTimeout(timerRef.current);
           timerRef.current = setTimeout(() => flushRef.current(), 0);
         }
       });
@@ -290,7 +333,14 @@ export default function Editor({
     },
   });
 
-  editorRef.current = editor;
+  // In an effect, not during render: assigning a ref while rendering is a render
+  // side effect, and a discarded/interrupted render would leave the ref pointing
+  // at an instance that was never committed. Every consumer
+  // (`applyBlockIdRemap`) only runs from a post-commit microtask, so this is
+  // strictly equivalent and safe under a concurrent renderer.
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
 
   const label =
     saveState === "pending" || saveState === "saving"
