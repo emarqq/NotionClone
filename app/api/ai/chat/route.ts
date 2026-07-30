@@ -104,8 +104,10 @@ async function enrichSources(
 /**
  * Streaming RAG chat endpoint. Wire format (text/event-stream, `data: <json>\n\n`):
  *   {type:'meta', conversationId, sources} → {type:'delta', text}* → {type:'done'}
- * or {type:'error', message} on failure. Persists the user message before
- * streaming and the assistant message (with sources) after the stream ends.
+ * or {type:'error', message, partial?, retryable?} on failure. Persists the user
+ * message before streaming and the assistant message (with sources) after the
+ * stream ends — **including when the stream ends badly** (§R1): a partial answer
+ * is saved with a marker explaining why it stopped, never silently dropped.
  */
 export async function POST(request: NextRequest) {
   let body: ChatRequestBody;
@@ -184,6 +186,13 @@ export async function POST(request: NextRequest) {
 
         let fullText = "";
         let aborted = false;
+        /**
+         * A provider failure *after* tokens started arriving. Held rather than
+         * rethrown: rethrowing jumped straight to the outer catch and skipped
+         * persistence, so an answer the user had already watched stream in
+         * vanished from history on the next refresh (CODE_REVIEW §R1).
+         */
+        let streamFailure: Error | null = null;
         try {
           for await (const delta of provider.chatStream({
             messages: chatMessages,
@@ -203,17 +212,26 @@ export async function POST(request: NextRequest) {
           if (request.signal.aborted) {
             aborted = true;
           } else {
-            throw streamError;
+            streamFailure =
+              streamError instanceof Error
+                ? streamError
+                : new Error(String(streamError));
           }
         }
 
-        // On client abort we keep the partial answer (tagged) rather than
-        // discarding it — losing a half-finished answer the user already
-        // skimmed is worse than labeling it as interrupted.
+        // Whatever streamed is kept, tagged with why it stopped. Losing a
+        // half-finished answer the user already skimmed is worse than showing an
+        // incomplete one — and it is the *user's* content once they've read it.
+        //
+        // The tag is an italic marker in the message body rather than a column,
+        // matching the pre-existing `_(response interrupted)_` convention, so
+        // this needs no migration and no Mac session to ship.
         if (fullText.length > 0) {
-          const content = aborted
-            ? `${fullText}\n\n_(response interrupted)_`
-            : fullText;
+          let content = fullText;
+          if (aborted) content = `${fullText}\n\n_(response interrupted)_`;
+          else if (streamFailure) {
+            content = `${fullText}\n\n_(response incomplete — ${streamFailure.message})_`;
+          }
           await addMessage(
             conversationId,
             "assistant",
@@ -222,7 +240,19 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        if (!aborted) send({ type: "done" });
+        if (streamFailure) {
+          // `retryable` tells the panel it can re-send the same question: the
+          // user turn is already persisted, so a retry appends rather than
+          // duplicating.
+          send({
+            type: "error",
+            message: streamFailure.message,
+            partial: fullText.length > 0,
+            retryable: true,
+          });
+        } else if (!aborted) {
+          send({ type: "done" });
+        }
         controller.close();
       } catch (error) {
         const errMessage = error instanceof Error ? error.message : "Unknown error";

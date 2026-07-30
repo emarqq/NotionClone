@@ -80,7 +80,7 @@ export default function AiPanel({ spaces }: AiPanelProps) {
     [setActiveConversationId]
   );
 
-  const { messages, isStreaming, error, send, abort, load, clear } =
+  const { messages, isStreaming, error, send, retry, abort, load, clear } =
     useAiChat(handleConversationId);
 
   useEffect(() => {
@@ -315,7 +315,24 @@ export default function AiPanel({ spaces }: AiPanelProps) {
 
       {error && (
         <div className="mx-2.5 mb-2 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          {error}
+          <p>{error.message}</p>
+          {error.partial && (
+            // Say so explicitly: an answer that stops mid-sentence otherwise
+            // reads as the model's opinion rather than as a failure.
+            <p className="mt-1 text-red-600/80 dark:text-red-400/80">
+              The partial answer above was saved.
+            </p>
+          )}
+          {error.retryable && (
+            <button
+              type="button"
+              onClick={() => void retry()}
+              disabled={isStreaming}
+              className="mt-1.5 rounded border border-red-300 px-1.5 py-0.5 font-medium hover:bg-red-100 disabled:opacity-50 dark:border-red-800 dark:hover:bg-red-900/40"
+            >
+              Ask again
+            </button>
+          )}
         </div>
       )}
 

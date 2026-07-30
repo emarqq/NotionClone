@@ -27,8 +27,18 @@ interface SseDone {
 interface SseError {
   type: "error";
   message: string;
+  /** Some of the answer streamed before the failure and has been persisted (§R1). */
+  partial?: boolean;
+  /** The question can be re-sent as-is; the user turn is already saved. */
+  retryable?: boolean;
 }
 type SseEvent = SseMeta | SseDelta | SseDone | SseError;
+
+export interface AiChatError {
+  message: string;
+  partial: boolean;
+  retryable: boolean;
+}
 
 function makeId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -44,8 +54,17 @@ function makeId(): string {
 export function useAiChat(onConversationId: (id: string) => void) {
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AiChatError | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  /**
+   * The arguments of the last send, so a failed turn can be retried without the
+   * user retyping. Kept in a ref rather than state: it must not re-render, and it
+   * must be readable from a callback created before the send happened.
+   */
+  const lastSendRef = useRef<
+    | { text: string; conversationId: string | null; spaceId: string | null; graphExpand: boolean }
+    | null
+  >(null);
 
   const load = useCallback((initial: AiChatMessage[]) => {
     setMessages(initial);
@@ -67,6 +86,7 @@ export function useAiChat(onConversationId: (id: string) => void) {
       const trimmed = text.trim();
       if (!trimmed || isStreaming) return;
       setError(null);
+      lastSendRef.current = { text: trimmed, conversationId, spaceId, graphExpand };
 
       const assistantId = makeId();
       setMessages((prev) => [
@@ -138,7 +158,14 @@ export function useAiChat(onConversationId: (id: string) => void) {
                 )
               );
             } else if (event.type === "error") {
-              setError(event.message);
+              // The partial text already in `content` stays on screen — the
+              // server has persisted it too (§R1), so a refresh no longer loses
+              // an answer the user was mid-way through reading.
+              setError({
+                message: event.message,
+                partial: event.partial ?? false,
+                retryable: event.retryable ?? false,
+              });
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantId ? { ...m, streaming: false } : m
@@ -149,7 +176,13 @@ export function useAiChat(onConversationId: (id: string) => void) {
         }
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
-          setError((err as Error).message || "Something went wrong.");
+          setError({
+            message: (err as Error).message || "Something went wrong.",
+            partial: false,
+            // A transport-level failure is always safe to re-send: either the
+            // server never saw the turn, or it saved it and a retry appends.
+            retryable: true,
+          });
         }
         setMessages((prev) =>
           prev.map((m) =>
@@ -168,5 +201,24 @@ export function useAiChat(onConversationId: (id: string) => void) {
     abortRef.current?.abort();
   }, []);
 
-  return { messages, isStreaming, error, send, abort, load, clear };
+  /**
+   * Re-asks the last question after a failed turn. Deliberately re-sends rather
+   * than resuming: a resume would need the provider to continue from arbitrary
+   * mid-text, which no local model does reliably, and a half-answer stitched to a
+   * second half-answer is worse than a clean second attempt. The failed partial
+   * stays in history, tagged, so nothing the user read is thrown away.
+   */
+  const retry = useCallback(async () => {
+    const last = lastSendRef.current;
+    if (!last || isStreaming) return;
+    // Drop the failed assistant turn from the *local* view so the retry does not
+    // render two answers to one question. The persisted one is untouched.
+    setMessages((prev) => {
+      const lastUser = prev.map((m) => m.role).lastIndexOf("user");
+      return lastUser === -1 ? prev : prev.slice(0, lastUser);
+    });
+    await send(last.text, last.conversationId, last.spaceId, last.graphExpand);
+  }, [isStreaming, send]);
+
+  return { messages, isStreaming, error, send, retry, abort, load, clear };
 }
