@@ -187,3 +187,85 @@ it is wedged; embeddings are sub-second and 15 s is already 20× headroom. Any t
 all is enormously better than the current behaviour, and a wrong-by-2× timeout is a
 tunable env var, not a defect. Blocking a HIGH data-availability fix on a preference
 question was the actual mistake.
+
+---
+
+### D-010 — Stream deadlines are *idle* deadlines, not total ones. (2026-07-30)
+
+**Amends D-009**, which said "30 s per chat/generation request" without saying what the
+clock measures. Implementing it made the ambiguity load-bearing.
+
+**Context.** A total 30 s cap on a streamed response would kill any answer an 8B local
+model takes longer than 30 s to finish — which is routine for a long answer over a lot of
+retrieved context. That trades a hang (annoying, obvious, recoverable by reload) for
+silent truncation (invisible, and it corrupts an answer the user then trusts). The bug
+being fixed was "a *wedged* backend hangs forever", and a wedged backend is distinguishable
+from a slow one by exactly one thing: it is not producing tokens.
+
+**Decision.** For streaming calls the budget is the time allowed to produce the **next**
+chunk, refreshed on every chunk (`Deadline.refresh()` in `lib/llm/timeout.ts`). For
+non-streaming calls it is the whole call, because there is nothing to measure progress
+against. Health checks get their own, much shorter budget — **5 s**,
+`LLM_HEALTHCHECK_TIMEOUT_MS` — which D-009 did not cover at all; a probe that takes 30 s
+to report "the model is down" is useless to the UI that asked.
+
+**Also decided here:** `0` in any of the three env vars means "no deadline" (a documented
+escape hatch, so nobody has to patch source to unblock a genuinely slow model), and an
+unparseable value falls back to the default rather than disabling the deadline —
+silently reverting to the hanging behaviour because someone typed `thirty` would be worse
+than ignoring them.
+
+**Consequence.** Roadmap C1. `tests/llm/timeout.test.ts` asserts a slow-but-alive stream
+(150 ms of chunks against a 60 ms budget) completes untouched; if a future refactor makes
+the deadline total, that test fails, which is the point.
+
+---
+
+### D-011 — An interrupted assistant answer is marked in the message body, not in a new column. (2026-07-30)
+
+**Context.** `CODE_REVIEW.md` §R1: a provider failure mid-stream skipped persistence
+entirely, so an answer the user had already watched stream in vanished on the next
+refresh. Fixing it requires recording *that* a turn is incomplete, and why.
+
+**Decision.** Append an italic marker to the message content —
+`_(response incomplete — <reason>)_`, alongside the pre-existing
+`_(response interrupted)_` used for client aborts — rather than adding a `status` /
+`error` column to `ai_messages`.
+
+**Reasoning.** A typed column is the cleaner model and I would prefer it. But it needs a
+migration, and a sandboxed session cannot verify migrations (brief §3) — so choosing it
+would have meant shipping nothing for a HIGH-severity data-loss bug and queueing it behind
+a Mac session, which is precisely the mistake D-009 was written to stop repeating. The
+convention already existed for aborts, the renderer needs no change, and the two states
+are distinguishable from each other and from a clean answer. **If a future session adds a
+`status` column for another reason, migrate these markers into it** — do not maintain both.
+
+**Consequence.** Roadmap C2. The SSE `error` event also gained `partial` and `retryable`
+so the panel can say "the partial answer above was saved" and offer *Ask again*. Retry
+re-sends the question rather than resuming mid-text: no local model continues reliably
+from an arbitrary cut point, and two stitched half-answers are worse than one clean second
+attempt.
+
+---
+
+### D-012 — Archiving a page hides its attachments from retrieval too. (2026-07-30)
+
+**Context.** Roadmap C4 / `CODE_REVIEW.md` §R5. Neither search RPC filtered
+`pages.is_archived`, so archived pages kept answering questions. Fixing it forces a
+question the code does not answer: what about a **file** chunk whose `files.page_id` points
+at the archived page?
+
+**Decision.** Exclude it. An *unattached* file (`files.page_id is null`) stays searchable.
+
+**Reasoning.** Archiving means "this is no longer part of my notes." A PDF that stays
+quotable after the page it lived on has left the sidebar is the same violation of that
+expectation, one level down, and harder to understand when it happens because there is no
+visible page to explain the citation. An unattached file was never on an archived page, so
+nothing about archiving should touch it. The cost of being wrong is low and symmetric:
+un-archiving restores both.
+
+**Also decided:** the filter goes in the candidate CTEs, **before** `limit 20`, not in the
+final select — otherwise a page with 30 archived chunks fills both top-20 candidate lists
+and the live chunk that should have been returned never enters the RRF fusion, so the
+query answers "nothing found". `tests/db/searchArchived.test.ts` pins this specific
+failure.

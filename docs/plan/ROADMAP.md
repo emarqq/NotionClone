@@ -119,7 +119,7 @@ of what "all of Notion" means. Evolve it in shippable steps; do not rewrite (D-0
 
 These do not lose data but they are why the app feels broken.
 
-- [ ] **C1 🧪 — Fix BUG-4: timeouts on every LLM/embedding fetch.** `CODE_REVIEW.md` §L1.
+- [x] **C1 🧪 — Fix BUG-4: timeouts on every LLM/embedding fetch.** ✅ `6bde50f` (2026-07-30). `lib/llm/timeout.ts`; idle deadline for streams (D-010), 5 s health checks, EmbeddingProvider contract suite added. `CODE_REVIEW.md` §L1.
       A wedged Ollama currently hangs every `/api/ai/chat` forever and leaks a connection
       per edit during an outage, in a server that stays up for days.
       `EmbeddingProvider.embed()` must take an `AbortSignal` (an interface change — update
@@ -127,13 +127,13 @@ These do not lose data but they are why the app feels broken.
       `request.signal`. **Default: 30 s per generation request, 15 s per embedding call,
       overridable by env.** Erik never chose these numbers; they are my defaults and I am
       not blocking on them.
-- [ ] **C2 🧪 — Fix R1: don't lose a partial assistant reply on a mid-stream error.**
+- [x] **C2 🧪 — Fix R1: don't lose a partial assistant reply on a mid-stream error.** ✅ `69f3c3e` (2026-07-30). Persisted with an in-body marker (D-011); panel offers *Ask again*.
       Persist what streamed, mark the turn errored, let the user retry.
 - [ ] **C3 🖥 — Fix BUG-5: embedding-model switch mixes vector spaces.** `CODE_REVIEW.md` §R2.
       `reconcileChunks` diffs on `content_hash` only and never checks `embedding_model`.
       Store the model on the chunk, treat a model change as a full invalidation, and ship
       the re-embed script that `STATUS.md` has listed as missing since 2026-07-26.
-- [ ] **C4 🧪 — Filter archived pages out of retrieval** (`§R5`) — archived pages are
+- [~] **C4 🧪 — Filter archived pages out of retrieval**  ⚠️ code + 11 tests written `cff7583` (2026-07-30), **migration UNVERIFIED — needs a Mac session to apply on the scratch container.** File chunks on an archived page are excluded too (D-012). (`§R5`) — archived pages are
       currently retrieved and cited. One `is_archived` predicate in both search RPCs.
 - [ ] **C5 🧪 — Prompt hygiene:** delimit system / retrieved-context / user question
       (`§R7`), cap prompt size (`§L3`), handle the unguarded `JSON.parse` in the Ollama

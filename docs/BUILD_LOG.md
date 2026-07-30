@@ -66,6 +66,19 @@ account plus a Free-vs-Pro breakdown. Headline conclusions:
       settles on "Saved", and that nothing typed during a save is lost.
 - [ ] Housekeeping: `rm -f .git/*.stale.* .git/objects/*/tmp_obj_*` — orphaned temp files
       from sandboxed sessions, which cannot unlink (see the toolchain note above).
+- [ ] **Apply and test `20260730000000_exclude_archived_from_search.sql`** (C4, `cff7583`).
+      **This SQL has never been parsed by Postgres.** Run `bash tests/db/setup-scratch-db.sh`
+      then `npm test` — `tests/db/searchArchived.test.ts` has 11 tests that currently
+      self-skip. **Scratch container only (port 54329), never the real stack** (brief §1).
+      Then re-check `docs/plan/ROADMAP.md` C4 from `[~]` to `[x]`.
+- [ ] **Exercise C1's timeouts against a real wedged Ollama** (`6bde50f`). Unit tests use a
+      stubbed hanging fetch; the thing worth confirming with the real server is that a
+      genuinely long generation is *not* truncated by the idle deadline (D-010) — i.e. ask
+      for something long and watch it finish. Also confirm `/api/ai/chat` now fails in ~30 s
+      with `stop ollama` rather than hanging.
+- [ ] **Exercise C2 in the app** (`69f3c3e`): start a chat, kill Ollama mid-answer, confirm
+      the partial stays on screen, that "Ask again" works, and — the actual bug — that the
+      partial is **still there after a browser refresh**, tagged `_(response incomplete …)_`.
 
 ## Blocked — needs Erik
 _(nothing yet)_
@@ -180,3 +193,74 @@ unfiltered delete, so a future refactor fails loudly instead of passing vacuousl
 **`UNVERIFIED` against the real stack** (sandboxed session, brief §3): the remint path has
 not been exercised against Postgres, and the `Editor.tsx` attr rewrite has not been driven
 in a browser. Queued below.
+
+### FINISHED — C1 (BUG-4) — `6bde50f`
+
+Every LLM and embedding fetch now carries a deadline (`lib/llm/timeout.ts`). Applied
+across both providers' `chatStream`, `generate`, `embed` and `healthCheck`, including the
+custom-finetune health check's *two* requests (each gets its own budget) — and body reads
+are inside the deadline, since `fetch()` resolves as soon as headers arrive and reading the
+body is its own chance to hang.
+
+**The judgment call, recorded as D-010:** for streams this is an **idle** deadline
+refreshed per chunk — 30 s to the *next* token, not 30 s for the whole answer. A total cap
+would truncate legitimate long generations, trading a visible hang for silent corruption of
+an answer the user then trusts. A test asserts a slow-but-alive stream (150 ms of chunks
+against a 60 ms budget) completes untouched.
+
+Also: `EmbeddingProvider` had **no contract suite at all**, which is how a HIGH-severity
+hang in the pre-first-token path survived three code reviews. It has one now.
+
+`.env.example` is gitignored in this repo, so the three new env vars
+(`LLM_TIMEOUT_MS`, `EMBEDDING_TIMEOUT_MS`, `LLM_HEALTHCHECK_TIMEOUT_MS`) are documented
+there on Erik's disk and in D-010, not in a tracked file.
+
+### FINISHED — C2 (§R1) — `69f3c3e`
+
+A provider failure mid-stream used to rethrow, skipping persistence: the user watched
+thirty tokens arrive and the whole assistant turn was gone after a refresh. Now the failure
+is held, the partial is persisted tagged `_(response incomplete — <reason>)_`, and the SSE
+`error` event carries `partial` + `retryable` so the panel reports that the partial was
+saved and offers **Ask again** (which re-sends rather than resuming — D-011 explains why).
+
+Deliberately no schema change; the marker convention already existed for aborts. D-011
+records that if a `status` column is ever added, these markers should migrate into it
+rather than both being maintained.
+
+### FINISHED (code) / BLOCKED (verification) — C4 (§R5) — `cff7583`
+
+`20260730000000_exclude_archived_from_search.sql` adds the `is_archived` filter to both
+search RPCs, inside the candidate CTEs so a page with 30 archived chunks cannot crowd the
+live chunk out of the fusion. File chunks attached to an archived page are excluded too;
+unattached files are not (D-012). 11 tests written.
+
+> **`UNVERIFIED`.** The SQL has never been parsed by Postgres and the 11 tests self-skipped
+> — no docker/psql/supabase in this session (brief §3). Queued above. **Do not mark C4 done
+> until that runs.**
+
+---
+
+## Session 3 summary — 2026-07-30 (Cowork, sandboxed)
+
+Five commits: `e61e823`, `3a5fcf8`, `748bf72`, `6bde50f`, `69f3c3e`, `cff7583`.
+Roadmap **A2, A3, C1, C2** closed; **C4** written but its migration unverified.
+That is every remaining defect in the brief's table that a session without Docker or a
+browser can actually finish — A1/A4/A5, B*, C3 and D4 all need the Mac.
+
+**Test suite: 101 → 167 tests** (138 passing, 29 Docker-gated), and the three files added
+all pin *specific historical data-loss bugs* rather than adding coverage for its own sake.
+
+**What I did not do, and why.** I did not start Phase D. Phase A is not finished — A1
+(backups) and A4 (transactional reconcile) are Mac-only, and A5 (the crash root-cause) needs
+the running app and the Electron logs. Starting a feature while the highest-priority item in
+the queue is "this project has no proven backup" would be the wrong call, and the roadmap's
+gating clarification says a sandboxed session should work the 🧪 items and stop — which is
+what happened.
+
+**The single most valuable thing a Mac session can do next is A1.** Not C4's verification,
+not A5. There is still no proven backup of Erik's notes; everything else is an improvement
+to something that could vanish.
+
+## Blocked — needs Erik
+_(nothing — every decision this session was mine to make and is recorded in
+`docs/00_DECISION_LOG.md` as D-010, D-011, D-012.)_

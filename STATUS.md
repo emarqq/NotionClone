@@ -3,8 +3,12 @@
 > Updated automatically by Claude Code at the end of each session (enforced by the Stop hook).
 > Do not let this go stale — if it looks stale, the hook isn't wired up correctly.
 
-**Last updated:** 2026-07-29
-**Overall completion:** ~74% (ARCHITECTURE.md Phases 1–3 reached except the global search UI; block drag-reorder now shipped, and the two HIGH-severity editor data-loss bugs (E1, E3) are fixed. Roughly half of FEATURE-PLAN.md remains. The three previously-unmerged feature branches are now merged into `main`.)
+**Last updated:** 2026-07-30
+**Overall completion:** ~76% (ARCHITECTURE.md Phases 1–3 reached except the global search UI. **All four HIGH-severity defects a sandboxed session could reach are now fixed** — E1, E3, L1 and R1 — and roadmap C4 is written but its migration is unverified. Roughly half of FEATURE-PLAN.md remains. `docs/plan/ROADMAP.md` is the authoritative queue; percentages here are a rough feel, not a measure.)
+
+> **The number to actually worry about is not this one.** There is still **no proven backup**
+> of the local database (roadmap A1). Every other line in this file describes an improvement
+> to something that could still be lost in one command.
 
 ## What's actually built
 - [x] **Auth + session** — email/password login (`app/login/page.tsx`), session refresh and redirect-to-login in `middleware.ts` → `lib/supabase/middleware.ts`, RLS policies on **all 21 tables** (the last four were added 2026-07-26).
@@ -25,8 +29,10 @@
 - [x] **Meeting notes** — `createMeetingNoteAction` seeds an 8-block template (Details / Attendees / Agenda / Notes).
 - [x] **Theme system** — light/dark/system with no-flash hydration, accent color pickers, WCAG contrast foregrounds (`lib/theme/color.ts`).
 - [x] **Electron desktop shell** — `desktop/electron/`, loads a production build on :3777.
-- [x] **Test suite** *(new 2026-07-26)* — Vitest, `npm test`. 101 tests (100 pass, 1 skip-guard) across the LLMProvider contract (all providers + a fake), the `hybrid_search` RPC against a disposable Postgres, the Stop hook's block/allow/bypass paths, the block-id parse rule, and the export walker. See "Testing" below.
+- [x] **Test suite** — Vitest, `npm test`. **167 tests** (138 pass, 29 Docker-gated), up from 101 on 2026-07-26. The three files added on 2026-07-30 each pin a *specific historical data-loss bug*: `tests/db/replacePageBlocks.test.ts` (§E1 remint, §E6 delete scoping), `tests/llm/timeout.test.ts` (§L1, incl. that a slow-but-alive stream is NOT killed), `tests/api/aiChatStream.test.ts` (§R1), plus `tests/db/searchArchived.test.ts` (§R5, Docker-gated). Originally 101 tests (100 pass, 1 skip-guard) across the LLMProvider contract (all providers + a fake), the `hybrid_search` RPC against a disposable Postgres, the Stop hook's block/allow/bypass paths, the block-id parse rule, and the export walker. See "Testing" below.
 - [x] **Cross-page block-id theft fixed** *(new 2026-07-29, CODE_REVIEW §E1)* — `replacePageBlocks` (`lib/db/blocks.ts`) now checks incoming ids against `blocks.page_id` and remints a fresh uuid for any id owned by another page, instead of silently re-parenting (and thereby deleting) the row out of its source page. `saveBlocksAction` returns the `{old→new}` remap; `Editor.tsx` rewrites the affected `blockId` attrs back into the doc via an out-of-history transaction so the next save doesn't remint again. Same pass replaced the string-concatenated `NOT IN` delete filter (CODE_REVIEW §E6, an injection-shaped query) with an explicit chunked id-list delete scoped to `page_id`.
+- [x] **Deadlines on every LLM / embedding fetch** *(new 2026-07-30, CODE_REVIEW §L1, roadmap C1)* — `lib/llm/timeout.ts`. Both providers' `chatStream` / `generate` / `embed` / `healthCheck` now carry an `AbortSignal` that fires after a budget (30 s generation, 15 s embedding, 5 s health check, all env-overridable; `0` opts out). `EmbeddingProvider.embed()` takes a signal — an interface change — and `retrieve()` forwards the request's signal. For **streams the deadline is idle, not total**: refreshed on every chunk, so a long generation is never truncated (D-010).
+- [x] **Partial assistant replies survive a mid-stream provider failure** *(new 2026-07-30, CODE_REVIEW §R1, roadmap C2)* — the failure is held instead of rethrown, whatever streamed is persisted tagged `_(response incomplete — <reason>)_`, and the SSE `error` event carries `partial` + `retryable` so the panel says the partial was saved and offers **Ask again**.
 - [x] **Overlapping-save data loss fixed** *(new 2026-07-29, CODE_REVIEW §E3)* — `Editor.tsx`'s `flush()` now guards against concurrent saves with `savingRef`/`saveSeqRef`: at most one `saveBlocksAction` in flight, stale responses are ignored by sequence number, `dirty` clears only if the doc hasn't changed since the snapshot was taken, and edits that arrive mid-save are flushed immediately on completion instead of waiting for another keystroke.
 
 ## What's in progress
@@ -44,24 +50,29 @@
 - [ ] **Re-embed / migration script** for changing the embedding model — now more urgent, see CODE_REVIEW R2.
 
 ## Known issues / broken right now
-> Two long-standing entries here were **wrong** and have been removed — see the session log. Two more (E1, E3) were fixed 2026-07-29 — see "What's actually built".
+> Two long-standing entries here were **wrong** and have been removed — see the session log. E1 and E3 were fixed 2026-07-29; L1 and R1 on 2026-07-30 — all four are under "What's actually built".
+>
+> **No HIGH-severity defect remains that a sandboxed session can fix.** Everything left in this list needs the Mac: the live database, the running app, or the Electron logs.
 
-- **No timeout on any LLM/embedding fetch (HIGH).** A wedged Ollama hangs every `/api/ai/chat` request forever, because retrieval → `embed()` runs first and `EmbeddingProvider.embed()` takes no signal. CODE_REVIEW.md §L1.
-- **A partial assistant reply is lost if the provider errors mid-stream (HIGH).** CODE_REVIEW.md §R1.
 - **Switching the embedding model silently mixes vector spaces (HIGH).** `reconcileChunks` diffs on `content_hash` only and never checks `embedding_model`. CODE_REVIEW.md §R2.
 - `healthCheck()` and `capabilities()` are fully implemented on both providers but have **zero call sites**; there is no health endpoint. `capabilities()` also returns a hardcoded `contextWindow: 8192` regardless of the configured model.
 - `components/editor/OutlinePanel.tsx:47` scans h1–h3 only, so H4 headings — which the slash menu can insert — never appear in the outline.
-- Archived pages are still retrieved and cited by the AI assistant (no `is_archived` filter in either search RPC). CODE_REVIEW.md §R5.
+- **No proven backup of the local database (HIGHEST).** Roadmap A1. The script, launchd plist and restore drill are written out in `docs/audit/SUPABASE-PRO-LEVERAGE.md` §5 and none of it is installed. A `db reset` on 2026-07-07 already destroyed a whole space.
+- **`replacePageBlocks` is still not transactional.** Upsert → delete → touch is three round-trips; a failure between them resurrects deleted blocks as phantoms. Roadmap A4, `CODE_REVIEW.md` §E4 — needs a Postgres function, so a Mac session.
+- **Every save still rewrites every block's position**, defeating the fractional indexing that exists. Typing one character on a 200-block page writes 200 rows and retriggers four background jobs. Roadmap B1, `CODE_REVIEW.md` §E5.
+- ~~Archived pages are retrieved and cited by the assistant~~ — **fix written, migration UNVERIFIED** (`supabase/migrations/20260730000000_exclude_archived_from_search.sql`, roadmap C4). The SQL has never been parsed by Postgres and its 11 tests self-skip without Docker. Do not treat this as done until a Mac session applies it on the scratch container.
 - `docs/FEATURE-PLAN.md` is stale — items 1, 2, 3, 7, and 9 are marked "not started" but have shipped.
 - Ollama was not running during this session, so the RAG/chat paths were not exercised live (the fire-and-forget ingest logged `failed to reach http://localhost:11434`, as expected).
 
 ## Next concrete action
-E1 is resolved (server-side fix, as recommended). Decide on CODE_REVIEW.md §L1 next (no timeout on any LLM/embedding fetch — a wedged Ollama hangs `/api/ai/chat` forever) — specifically whether `EmbeddingProvider.embed()` should take an `AbortSignal`, since that's an interface change touching both providers.
+**Install the backup system and run the restore drill** (roadmap A1; script, plist and drill already written in `docs/audit/SUPABASE-PRO-LEVERAGE.md` §5). This is a Mac-session task and it outranks everything else in the queue, including verifying C4's migration: an unbacked-up database makes every other improvement provisional. Record the drill result in `docs/BUILD_LOG.md` — until that line exists, assume there are no backups.
+
+Then, in order: apply C4's migration on the **scratch** container and unskip its tests; A4 (transactional reconcile); A5 (root-cause "it keeps crashing" from the real Electron logs, rather than assuming it is all the `:3777` stale-build trap).
 
 ## Testing
 
 ```bash
-npm test          # vitest run  (101 tests)
+npm test          # vitest run  (167 tests: 138 pass, 29 skip without Docker)
 npm run typecheck # tsc --noEmit
 npm run lint      # eslint
 npm run build     # next build
@@ -76,11 +87,23 @@ npm run build     # next build
 - **Fractional indexing** (`lib/positions.ts`, `position` columns `COLLATE "C"`) orders pages and blocks. Note the editor currently regenerates *every* block's position on *every* save (CODE_REVIEW §E5), which undercuts this.
 - **LLM access goes through `lib/llm/registry.ts`**, which resolves chat and embedding providers independently. An unrecognized provider id is **silently** replaced by the fallback with no log (`registry.ts:54`).
 - **AI edits are propose-only — a hard rule.** Never make an AI path auto-commit.
-- **Schema lives only in `supabase/migrations/`.** Verified this session that all 9 migrations replay cleanly from scratch on a disposable container. Never run `supabase db reset` on the real stack (see the CAUTION in CLAUDE.md) — use `supabase migration up` with Erik's explicit consent, or a scratch container.
+- **Schema lives only in `supabase/migrations/`.** All 9 migrations as of 2026-07-26 were verified to replay cleanly from scratch on a disposable container. **The 10th (`20260730000000_exclude_archived_from_search.sql`, 2026-07-30) has NOT been verified** — it was written from a sandboxed session with no Postgres. Never run `supabase db reset` on the real stack (see the CAUTION in CLAUDE.md) — use `supabase migration up` with Erik's explicit consent, or a scratch container.
 - **The desktop app is a stale-build trap.** `~/Applications/Notion Clone.app` loads a *production* server on :3777, not the :3000 dev server. Kill :3777, `npm run build`, restart to see changes.
 - **Repo-local tooling**: `.claude/hooks/enforce-status-update.sh` is a Stop hook that blocks ending a session with a dirty tree unless STATUS.md was touched (bypass: `touch /tmp/.skip-status-check`). `.claude/agents/codebase-architect.md` is a read-only architecture-explainer subagent.
 
 ## Session log
+
+### 2026-07-30 — autonomous session 3 (Cowork, sandboxed; 6 commits on `claude/overnight-2026-07-26`)
+Picked up a 67-minute-stale lock and an uncommitted working tree from a session that died mid-item; reviewed the inherited diff, judged it a complete and correct implementation of roadmap A2/A3, and finished it rather than stashing it. Then closed the two remaining sandbox-reachable HIGH defects.
+
+- `e61e823` **A2/A3/§E6** — cross-page block-id theft (server-side remint, D-007), the overlapping-save race (in-flight mutex + save sequence), and the injection-shaped concatenated delete filter.
+- `3a5fcf8` 15 tests pinning `replacePageBlocks`, the most dangerous function in the repo and previously untested.
+- `6bde50f` **C1/§L1** — deadlines on every LLM and embedding fetch. Streams get an *idle* deadline (D-010) so long answers are not truncated. `EmbeddingProvider` gained its first contract suite.
+- `69f3c3e` **C2/§R1** — a partial answer now survives a mid-stream provider failure, tagged and retryable (D-011).
+- `cff7583` **C4/§R5** — archived pages excluded from both search RPCs (D-012). **Migration UNVERIFIED.**
+- `748bf72` + this entry — docs, and two sandbox toolchain workarounds recorded in `docs/BUILD_LOG.md` so no future session loses an hour to them (the Mac's `node_modules` breaks vitest on Linux; the repo mount forbids `unlink`, so git leaves stale `*.lock` files).
+
+Decisions D-010, D-011, D-012 written to `docs/00_DECISION_LOG.md`. Nothing was escalated to Erik — every open question this session was an engineering one.
 
 ### 2026-07-29 — E1/E3 editor fixes (uncommitted, branch `claude/overnight-2026-07-26`)
 Implemented the server-side fix for CODE_REVIEW §E1 recommended in the prior session's "Next concrete action": `replacePageBlocks` (`lib/db/blocks.ts`) now detects incoming block ids already owned by another page and remints them instead of re-parenting the row, closing the cross-page-paste data-loss hole; `saveBlocksAction`/`Editor.tsx` plumb the id remap back into the live ProseMirror doc. Same pass fixed §E3 (concurrent-save race that could delete newly typed blocks) with an in-flight/sequence guard in `Editor.tsx`, and §E6 (injection-shaped string-concatenated delete filter) with a chunked explicit-id-list delete. Verified `npm run typecheck` (clean) and `npm test` (82 passed, 19 skipped — Docker-dependent, expected) before writing this entry. Changes are in the working tree, **not yet committed**.
