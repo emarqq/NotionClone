@@ -77,7 +77,13 @@ export function createFakeEmbeddingProvider(dimensions = 768): EmbeddingProvider
   return {
     id: "fake",
     dimensions,
-    async embed(texts: string[]): Promise<number[][]> {
+    async embed(texts: string[], signal?: AbortSignal): Promise<number[][]> {
+      // The signal is part of the interface (D-009), so the fake honours it —
+      // otherwise the contract suite would pass on the fake while a real
+      // provider that ignored it also passed.
+      if (signal?.aborted) {
+        throw new Error("fake embedding provider: aborted before embedding");
+      }
       // Deterministic and content-dependent, so a test can assert that two
       // different strings do not collide.
       return texts.map((t) => {

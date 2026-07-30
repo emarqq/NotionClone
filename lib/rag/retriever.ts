@@ -133,10 +133,16 @@ export async function retrieve(
     expand?: boolean;
     hops?: 1 | 2;
     neighborBudget?: number;
+    /**
+     * The incoming request's signal. Retrieval runs *before* the first token, so
+     * without this a client that gives up still leaves an embedding call running
+     * — and a wedged embedder used to hang the whole chat request (BUG-4).
+     */
+    signal?: AbortSignal;
   }
 ): Promise<RetrievedSource[]> {
   const embeddingProvider = await getEmbeddingProvider();
-  const [queryEmbedding] = await embeddingProvider.embed([query]);
+  const [queryEmbedding] = await embeddingProvider.embed([query], opts?.signal);
 
   const supabase = createServiceSupabase();
   const { data, error } = await supabase.rpc("hybrid_search", {

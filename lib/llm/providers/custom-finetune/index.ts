@@ -8,6 +8,12 @@ import type {
   GenerateResult,
   LLMProvider,
 } from "../../types";
+import {
+  describeFetchFailure,
+  healthCheckTimeoutMs,
+  llmTimeoutMs,
+  startDeadline,
+} from "../../timeout";
 
 const BASE_URL = () =>
   process.env.CUSTOM_LLM_BASE_URL ?? "http://localhost:8000/v1";
@@ -76,37 +82,46 @@ export function createCustomFinetuneLLMProvider(): LLMProvider {
     async *chatStream(req: ChatRequest): AsyncIterable<ChatDelta> {
       const baseUrl = BASE_URL();
       const model = MODEL();
-      let res: Response;
+      // Idle deadline, refreshed per SSE event — see lib/llm/timeout.ts for why
+      // this is not a cap on the whole response.
+      const deadline = startDeadline(llmTimeoutMs(), req.signal);
+      const url = `${baseUrl}/chat/completions`;
       try {
-        res = await fetch(`${baseUrl}/chat/completions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            model,
-            messages: toOpenAiMessages(req.system, req.messages),
-            stream: true,
-            temperature: req.temperature,
-            max_tokens: req.maxTokens,
-          }),
-          signal: req.signal,
-        });
-      } catch (err) {
-        throw new Error(
-          `custom-finetune provider: failed to reach ${baseUrl}/chat/completions: ${
-            (err as Error).message
-          }`
-        );
-      }
-      if (!res.ok || !res.body) {
-        throw new Error(
-          `custom-finetune provider: chat request to ${baseUrl} failed (${res.status} ${res.statusText})`
-        );
-      }
-      for await (const chunk of readSse(res.body)) {
-        const choice = chunk.choices?.[0];
-        const text = choice?.delta?.content ?? "";
-        const done = choice?.finish_reason != null;
-        if (text || done) yield { text, done };
+        let res: Response;
+        try {
+          res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({
+              model,
+              messages: toOpenAiMessages(req.system, req.messages),
+              stream: true,
+              temperature: req.temperature,
+              max_tokens: req.maxTokens,
+            }),
+            signal: deadline.signal,
+          });
+        } catch (err) {
+          throw describeFetchFailure("custom-finetune provider", url, deadline, err);
+        }
+        if (!res.ok || !res.body) {
+          throw new Error(
+            `custom-finetune provider: chat request to ${baseUrl} failed (${res.status} ${res.statusText})`
+          );
+        }
+        try {
+          for await (const chunk of readSse(res.body)) {
+            deadline.refresh();
+            const choice = chunk.choices?.[0];
+            const text = choice?.delta?.content ?? "";
+            const done = choice?.finish_reason != null;
+            if (text || done) yield { text, done };
+          }
+        } catch (err) {
+          throw describeFetchFailure("custom-finetune provider", url, deadline, err);
+        }
+      } finally {
+        deadline.clear();
       }
     },
 
@@ -116,34 +131,36 @@ export function createCustomFinetuneLLMProvider(): LLMProvider {
       const messages: ChatMessage[] = toOpenAiMessages(req.system, [
         { role: "user", content: req.prompt },
       ]);
-      let res: Response;
+      const deadline = startDeadline(llmTimeoutMs(), req.signal);
+      const url = `${baseUrl}/chat/completions`;
       try {
-        res = await fetch(`${baseUrl}/chat/completions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            model,
-            messages,
-            stream: false,
-            temperature: req.temperature,
-            max_tokens: req.maxTokens,
-          }),
-          signal: req.signal,
-        });
-      } catch (err) {
-        throw new Error(
-          `custom-finetune provider: failed to reach ${baseUrl}/chat/completions: ${
-            (err as Error).message
-          }`
-        );
+        let res: Response;
+        try {
+          res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({
+              model,
+              messages,
+              stream: false,
+              temperature: req.temperature,
+              max_tokens: req.maxTokens,
+            }),
+            signal: deadline.signal,
+          });
+        } catch (err) {
+          throw describeFetchFailure("custom-finetune provider", url, deadline, err);
+        }
+        if (!res.ok) {
+          throw new Error(
+            `custom-finetune provider: generate request to ${baseUrl} failed (${res.status} ${res.statusText})`
+          );
+        }
+        const json = (await res.json()) as OpenAiCompletion;
+        return { text: json.choices?.[0]?.message?.content ?? "" };
+      } finally {
+        deadline.clear();
       }
-      if (!res.ok) {
-        throw new Error(
-          `custom-finetune provider: generate request to ${baseUrl} failed (${res.status} ${res.statusText})`
-        );
-      }
-      const json = (await res.json()) as OpenAiCompletion;
-      return { text: json.choices?.[0]?.message?.content ?? "" };
     },
 
     capabilities() {
@@ -152,8 +169,22 @@ export function createCustomFinetuneLLMProvider(): LLMProvider {
 
     async healthCheck(): Promise<{ ok: boolean; detail?: string }> {
       const baseUrl = BASE_URL();
+      // Short, dedicated budget — and note this method can make *two* requests,
+      // so each gets its own rather than sharing one (a probe that reports
+      // "unreachable" must never itself be the slow thing).
+      const unreachable = (deadline: { timedOut: boolean; ms: number }, err: unknown) => ({
+        ok: false as const,
+        detail: deadline.timedOut
+          ? `custom-finetune provider: ${baseUrl} did not respond within ${deadline.ms}ms`
+          : `custom-finetune provider: cannot reach ${baseUrl}: ${(err as Error).message}`,
+      });
+
+      const modelsDeadline = startDeadline(healthCheckTimeoutMs());
       try {
-        const res = await fetch(`${baseUrl}/models`, { headers: authHeaders() });
+        const res = await fetch(`${baseUrl}/models`, {
+          headers: authHeaders(),
+          signal: modelsDeadline.signal,
+        });
         if (res.ok) return { ok: true };
         if (res.status !== 404) {
           return {
@@ -164,11 +195,12 @@ export function createCustomFinetuneLLMProvider(): LLMProvider {
         // Some OpenAI-compatible servers don't implement /models — fall back
         // to a minimal chat completion to prove liveness.
       } catch (err) {
-        return {
-          ok: false,
-          detail: `custom-finetune provider: cannot reach ${baseUrl}: ${(err as Error).message}`,
-        };
+        return unreachable(modelsDeadline, err);
+      } finally {
+        modelsDeadline.clear();
       }
+
+      const pingDeadline = startDeadline(healthCheckTimeoutMs());
       try {
         const res = await fetch(`${baseUrl}/chat/completions`, {
           method: "POST",
@@ -179,6 +211,7 @@ export function createCustomFinetuneLLMProvider(): LLMProvider {
             stream: false,
             max_tokens: 1,
           }),
+          signal: pingDeadline.signal,
         });
         if (!res.ok) {
           return {
@@ -188,10 +221,9 @@ export function createCustomFinetuneLLMProvider(): LLMProvider {
         }
         return { ok: true };
       } catch (err) {
-        return {
-          ok: false,
-          detail: `custom-finetune provider: cannot reach ${baseUrl}: ${(err as Error).message}`,
-        };
+        return unreachable(pingDeadline, err);
+      } finally {
+        pingDeadline.clear();
       }
     },
   };

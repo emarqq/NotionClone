@@ -9,6 +9,13 @@ import type {
   GenerateResult,
   LLMProvider,
 } from "../types";
+import {
+  describeFetchFailure,
+  embeddingTimeoutMs,
+  healthCheckTimeoutMs,
+  llmTimeoutMs,
+  startDeadline,
+} from "../timeout";
 
 const BASE_URL = () => process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const CHAT_MODEL = () => process.env.OLLAMA_CHAT_MODEL ?? "llama3.1:8b";
@@ -71,32 +78,42 @@ export function createOllamaLLMProvider(): LLMProvider {
     async *chatStream(req: ChatRequest): AsyncIterable<ChatDelta> {
       const baseUrl = BASE_URL();
       const model = CHAT_MODEL();
-      let res: Response;
+      // Idle deadline, refreshed per line: 30 s to produce the *next* token, not
+      // 30 s for the whole answer (see lib/llm/timeout.ts).
+      const deadline = startDeadline(llmTimeoutMs(), req.signal);
       try {
-        res = await fetch(`${baseUrl}/api/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model,
-            messages: toOllamaMessages(req.system, req.messages),
-            stream: true,
-            options: toOllamaOptions(req),
-          }),
-          signal: req.signal,
-        });
-      } catch (err) {
-        throw new Error(
-          `ollama provider: failed to reach ${baseUrl}/api/chat: ${(err as Error).message}`
-        );
-      }
-      if (!res.ok || !res.body) {
-        throw new Error(
-          `ollama provider: chat request to ${baseUrl} failed (${res.status} ${res.statusText})`
-        );
-      }
-      for await (const line of readNdjson(res.body)) {
-        const text = line.message?.content ?? "";
-        if (text || line.done) yield { text, done: line.done };
+        let res: Response;
+        try {
+          res = await fetch(`${baseUrl}/api/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model,
+              messages: toOllamaMessages(req.system, req.messages),
+              stream: true,
+              options: toOllamaOptions(req),
+            }),
+            signal: deadline.signal,
+          });
+        } catch (err) {
+          throw describeFetchFailure("ollama provider", `${baseUrl}/api/chat`, deadline, err);
+        }
+        if (!res.ok || !res.body) {
+          throw new Error(
+            `ollama provider: chat request to ${baseUrl} failed (${res.status} ${res.statusText})`
+          );
+        }
+        try {
+          for await (const line of readNdjson(res.body)) {
+            deadline.refresh();
+            const text = line.message?.content ?? "";
+            if (text || line.done) yield { text, done: line.done };
+          }
+        } catch (err) {
+          throw describeFetchFailure("ollama provider", `${baseUrl}/api/chat`, deadline, err);
+        }
+      } finally {
+        deadline.clear();
       }
     },
 
@@ -106,31 +123,34 @@ export function createOllamaLLMProvider(): LLMProvider {
       const messages: ChatMessage[] = toOllamaMessages(req.system, [
         { role: "user", content: req.prompt },
       ]);
-      let res: Response;
+      const deadline = startDeadline(llmTimeoutMs(), req.signal);
       try {
-        res = await fetch(`${baseUrl}/api/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model,
-            messages,
-            stream: false,
-            options: toOllamaOptions(req),
-          }),
-          signal: req.signal,
-        });
-      } catch (err) {
-        throw new Error(
-          `ollama provider: failed to reach ${baseUrl}/api/chat: ${(err as Error).message}`
-        );
+        let res: Response;
+        try {
+          res = await fetch(`${baseUrl}/api/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model,
+              messages,
+              stream: false,
+              options: toOllamaOptions(req),
+            }),
+            signal: deadline.signal,
+          });
+        } catch (err) {
+          throw describeFetchFailure("ollama provider", `${baseUrl}/api/chat`, deadline, err);
+        }
+        if (!res.ok) {
+          throw new Error(
+            `ollama provider: generate request to ${baseUrl} failed (${res.status} ${res.statusText})`
+          );
+        }
+        const json = (await res.json()) as OllamaChatLine;
+        return { text: json.message?.content ?? "" };
+      } finally {
+        deadline.clear();
       }
-      if (!res.ok) {
-        throw new Error(
-          `ollama provider: generate request to ${baseUrl} failed (${res.status} ${res.statusText})`
-        );
-      }
-      const json = (await res.json()) as OllamaChatLine;
-      return { text: json.message?.content ?? "" };
     },
 
     capabilities() {
@@ -140,35 +160,44 @@ export function createOllamaLLMProvider(): LLMProvider {
     async healthCheck(): Promise<{ ok: boolean; detail?: string }> {
       const baseUrl = BASE_URL();
       const model = CHAT_MODEL();
-      let res: Response;
+      // A health check that takes 30 s to say "no" is useless to a UI, so this
+      // gets its own much shorter budget.
+      const deadline = startDeadline(healthCheckTimeoutMs());
       try {
-        res = await fetch(`${baseUrl}/api/tags`);
-      } catch (err) {
-        return {
-          ok: false,
-          detail: `ollama provider: cannot reach ${baseUrl}: ${(err as Error).message}`,
-        };
+        let res: Response;
+        try {
+          res = await fetch(`${baseUrl}/api/tags`, { signal: deadline.signal });
+        } catch (err) {
+          return {
+            ok: false,
+            detail: deadline.timedOut
+              ? `ollama provider: ${baseUrl} did not respond within ${deadline.ms}ms`
+              : `ollama provider: cannot reach ${baseUrl}: ${(err as Error).message}`,
+          };
+        }
+        if (!res.ok) {
+          return {
+            ok: false,
+            detail: `ollama provider: ${baseUrl}/api/tags returned ${res.status} ${res.statusText}`,
+          };
+        }
+        const json = (await res.json()) as { models?: { name: string }[] };
+        const names = json.models?.map((m) => m.name) ?? [];
+        const hasModel = names.some(
+          (name) => name === model || name.startsWith(`${model}:`)
+        );
+        if (!hasModel) {
+          return {
+            ok: false,
+            detail: `ollama provider: model '${model}' not found at ${baseUrl}. Available: ${
+              names.join(", ") || "(none)"
+            }`,
+          };
+        }
+        return { ok: true };
+      } finally {
+        deadline.clear();
       }
-      if (!res.ok) {
-        return {
-          ok: false,
-          detail: `ollama provider: ${baseUrl}/api/tags returned ${res.status} ${res.statusText}`,
-        };
-      }
-      const json = (await res.json()) as { models?: { name: string }[] };
-      const names = json.models?.map((m) => m.name) ?? [];
-      const hasModel = names.some(
-        (name) => name === model || name.startsWith(`${model}:`)
-      );
-      if (!hasModel) {
-        return {
-          ok: false,
-          detail: `ollama provider: model '${model}' not found at ${baseUrl}. Available: ${
-            names.join(", ") || "(none)"
-          }`,
-        };
-      }
-      return { ok: true };
     },
   };
 }
@@ -183,39 +212,50 @@ export function createOllamaEmbeddingProvider(): EmbeddingProvider {
     id: "ollama",
     dimensions: EMBED_DIMENSIONS,
 
-    async embed(texts: string[]): Promise<number[][]> {
+    async embed(texts: string[], signal?: AbortSignal): Promise<number[][]> {
       const baseUrl = BASE_URL();
       const model = EMBED_MODEL();
       const results: number[][] = [];
       for (let i = 0; i < texts.length; i += EMBED_BATCH_SIZE) {
         const batch = texts.slice(i, i + EMBED_BATCH_SIZE);
-        let res: Response;
+        // Per batch, not per call: a 300-chunk ingest is 10 batches and must not
+        // share one 15 s budget.
+        const deadline = startDeadline(embeddingTimeoutMs(), signal);
         try {
-          res = await fetch(`${baseUrl}/api/embed`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ model, input: batch }),
-          });
-        } catch (err) {
-          throw new Error(
-            `ollama embedding provider: failed to reach ${baseUrl}/api/embed: ${
-              (err as Error).message
-            }`
-          );
-        }
-        if (!res.ok) {
-          throw new Error(
-            `ollama embedding provider: embed request to ${baseUrl} failed (${res.status} ${res.statusText})`
-          );
-        }
-        const json = (await res.json()) as OllamaEmbedResponse;
-        for (const vector of json.embeddings ?? []) {
-          if (vector.length !== EMBED_DIMENSIONS) {
-            throw new Error(
-              `ollama embedding provider: expected ${EMBED_DIMENSIONS}-dim vectors from '${model}', got ${vector.length}`
+          let res: Response;
+          try {
+            res = await fetch(`${baseUrl}/api/embed`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ model, input: batch }),
+              signal: deadline.signal,
+            });
+          } catch (err) {
+            throw describeFetchFailure(
+              "ollama embedding provider",
+              `${baseUrl}/api/embed`,
+              deadline,
+              err
             );
           }
-          results.push(vector);
+          if (!res.ok) {
+            throw new Error(
+              `ollama embedding provider: embed request to ${baseUrl} failed (${res.status} ${res.statusText})`
+            );
+          }
+          // Inside the deadline: fetch() resolves as soon as the headers arrive,
+          // so reading the body is its own opportunity to hang.
+          const json = (await res.json()) as OllamaEmbedResponse;
+          for (const vector of json.embeddings ?? []) {
+            if (vector.length !== EMBED_DIMENSIONS) {
+              throw new Error(
+                `ollama embedding provider: expected ${EMBED_DIMENSIONS}-dim vectors from '${model}', got ${vector.length}`
+              );
+            }
+            results.push(vector);
+          }
+        } finally {
+          deadline.clear();
         }
       }
       return results;

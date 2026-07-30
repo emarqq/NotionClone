@@ -168,6 +168,7 @@ export async function POST(request: NextRequest) {
           k: 8,
           expand: graphExpand,
           hops: 1,
+          signal: request.signal,
         });
         const enriched = await enrichSources(sources);
 

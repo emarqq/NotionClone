@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createOllamaLLMProvider } from "@/lib/llm/providers/ollama";
+import {
+  createOllamaEmbeddingProvider,
+  createOllamaLLMProvider,
+} from "@/lib/llm/providers/ollama";
 import { createCustomFinetuneLLMProvider } from "@/lib/llm/providers/custom-finetune";
-import type { ChatDelta, LLMProvider } from "@/lib/llm/types";
-import { createFakeLLMProvider } from "./fakeProvider";
+import type { ChatDelta, EmbeddingProvider, LLMProvider } from "@/lib/llm/types";
+import { createFakeEmbeddingProvider, createFakeLLMProvider } from "./fakeProvider";
 
 /**
  * One shared contract suite, run against every LLMProvider implementation.
@@ -244,21 +247,46 @@ describe.each(harnesses)("LLMProvider contract: $name", (h) => {
     // which rejects. Either way the caller must not get a normal result.
     if (h.name === "fake") {
       await expect(h.make().generate({ prompt: "q", signal: ac.signal })).rejects.toThrow();
-    } else {
-      // With fetch stubbed the signal is not honoured by the stub, so assert the
-      // narrower, still-meaningful property: the provider forwards the signal.
-      const seen: RequestInit[] = [];
-      vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
-        seen.push(init);
-        return Response.json(
-          h.name === "ollama"
-            ? { message: { content: "x" } }
-            : { choices: [{ message: { content: "x" } }] }
-        );
-      });
-      await h.make().generate({ prompt: "q", signal: ac.signal });
-      expect(seen[0]?.signal).toBe(ac.signal);
+      return;
     }
+    // With fetch stubbed the signal is not honoured by the stub, so assert the
+    // narrower, still-meaningful property: the provider passes fetch a signal
+    // that is *already aborted* because the caller's was.
+    //
+    // Note it is deliberately NOT the caller's own signal object any more — since
+    // C1 the providers wrap it in a deadline (lib/llm/timeout.ts) so a wedged
+    // backend cannot hang forever. Identity would be the wrong assertion; the
+    // behaviour that matters is that the abort propagates.
+    const seen: RequestInit[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      seen.push(init);
+      return Response.json(
+        h.name === "ollama"
+          ? { message: { content: "x" } }
+          : { choices: [{ message: { content: "x" } }] }
+      );
+    });
+    await h.make().generate({ prompt: "q", signal: ac.signal });
+    expect(seen[0]?.signal).toBeInstanceOf(AbortSignal);
+    expect(seen[0]?.signal?.aborted).toBe(true);
+  });
+
+  it("passes fetch a live (non-aborted) signal when the caller gives none", async () => {
+    // Every outbound request must carry a deadline signal even when the caller
+    // supplied nothing — that is the whole point of BUG-4's fix.
+    if (h.name === "fake") return;
+    const seen: RequestInit[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      seen.push(init);
+      return Response.json(
+        h.name === "ollama"
+          ? { message: { content: "x" } }
+          : { choices: [{ message: { content: "x" } }] }
+      );
+    });
+    await h.make().generate({ prompt: "q" });
+    expect(seen[0]?.signal).toBeInstanceOf(AbortSignal);
+    expect(seen[0]?.signal?.aborted).toBe(false);
   });
 
   /**
@@ -273,6 +301,91 @@ describe.each(harnesses)("LLMProvider contract: $name", (h) => {
     h.stubMalformed();
     const res = await h.make().generate({ prompt: "q" });
     expect(res.text).toBe("");
+  });
+});
+
+// --- the EmbeddingProvider contract ---------------------------------------
+
+/**
+ * `embed()` gained an `AbortSignal` in C1/D-009, and until then EmbeddingProvider
+ * had no contract suite at all — which is how a HIGH-severity hang (a wedged
+ * embedder blocking every /api/ai/chat before the first token) survived three
+ * code reviews. Same shape as the LLMProvider suite: the same assertions run
+ * against the fake and against Ollama.
+ */
+interface EmbedHarness {
+  name: string;
+  make: () => EmbeddingProvider;
+  expectedId: string;
+  /** Stub the transport to return `count` well-formed 768-dim vectors. */
+  stubOk: (count: number) => void;
+}
+
+const embedHarnesses: EmbedHarness[] = [
+  {
+    name: "fake",
+    make: () => createFakeEmbeddingProvider(),
+    expectedId: "fake",
+    stubOk: () => {},
+  },
+  {
+    name: "ollama",
+    make: () => createOllamaEmbeddingProvider(),
+    expectedId: "ollama",
+    stubOk: (count) =>
+      // Honours the abort signal, as a real fetch does — a stub that ignored it
+      // would let a provider that never passes the signal through pass this suite.
+      vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
+        if (init?.signal?.aborted) throw init.signal.reason ?? new Error("aborted");
+        return Response.json({
+          embeddings: Array.from({ length: count }, () => new Array(768).fill(0.5)),
+        });
+      }),
+  },
+];
+
+describe.each(embedHarnesses)("EmbeddingProvider contract: $name", (h) => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("exposes a stable id and the 768 dimensions the chunks.embedding column expects", () => {
+    const p = h.make();
+    expect(p.id).toBe(h.expectedId);
+    // A mismatch here is a silent vector-space corruption, not a type error.
+    expect(p.dimensions).toBe(768);
+  });
+
+  it("returns one vector per input text, each of the declared dimensionality", async () => {
+    h.stubOk(2);
+    const vectors = await h.make().embed(["alpha", "beta"]);
+    expect(vectors).toHaveLength(2);
+    for (const v of vectors) expect(v).toHaveLength(768);
+  });
+
+  it("accepts an AbortSignal and refuses to run when it is already aborted", async () => {
+    h.stubOk(1);
+    const ac = new AbortController();
+    ac.abort();
+    await expect(h.make().embed(["x"], ac.signal)).rejects.toThrow();
+  });
+
+  it("returns an empty array for no input without calling the transport", async () => {
+    const calls: unknown[] = [];
+    vi.stubGlobal("fetch", async (...args: unknown[]) => {
+      calls.push(args);
+      return Response.json({ embeddings: [] });
+    });
+    expect(await h.make().embed([])).toEqual([]);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("rejects vectors of the wrong dimensionality rather than storing them", async () => {
+    // The failure this guards is BUG-5's cousin: a model swap that returns
+    // 1024-dim vectors must fail loudly, not half-fill a vector(768) column.
+    if (h.name === "fake") return;
+    vi.stubGlobal("fetch", async () =>
+      Response.json({ embeddings: [new Array(1024).fill(0.1)] })
+    );
+    await expect(h.make().embed(["x"])).rejects.toThrow(/768-dim/);
   });
 });
 

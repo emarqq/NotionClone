@@ -48,5 +48,10 @@ export interface EmbeddingProvider {
   readonly id: string;
   /** Must match the chunks.embedding vector(768) column. */
   readonly dimensions: number;
-  embed(texts: string[]): Promise<number[][]>;
+  /**
+   * `signal` cancels in-flight batches — pass the incoming request's signal so a
+   * client disconnect does not leave an embedding call running (D-009). A
+   * per-batch timeout applies regardless of whether a signal is given.
+   */
+  embed(texts: string[], signal?: AbortSignal): Promise<number[][]>;
 }
