@@ -264,3 +264,65 @@ to something that could vanish.
 ## Blocked — needs Erik
 _(nothing — every decision this session was mine to make and is recorded in
 `docs/00_DECISION_LOG.md` as D-010, D-011, D-012.)_
+
+---
+
+## 2026-07-30 01:40 UTC — FINISHED — Adversarial review of this session's own diff, and the seven defects it found
+
+Ran an independent read-only review over `e61e823..HEAD` before calling the session done,
+rather than trusting my own commits. **It found seven real defects in the code I had just
+committed, one of which was a straight regression.** Worth recording as evidence that
+review of a session's own output is not ceremony — the A3 concurrency guard in particular
+introduced a worse bug than the one it fixed.
+
+Fixed in `995f5e3` (editor) and `3ae04c1` (AI panel + providers):
+
+1. **Unbounded 0 ms retry storm.** A3 correctly stopped clearing `dirty` on failure, but
+   the `finally` rescheduled on `dirty` alone. A failing save therefore rescheduled itself
+   immediately, failed, and repeated — a continuous round-trip-rate loop of server actions
+   for as long as the failure lasted, while the UI claimed it would retry on the next edit.
+   It also outlived unmount, since nothing cancels a timer installed after cleanup ran.
+2. **Editor could stop saving permanently.** `savingRef` was claimed before the synchronous
+   `blocksFromDoc`, which can throw; the flag would never clear and every later flush would
+   return at the guard, indicator stuck on "Saving…".
+3. Orphaned debounce timer (the `finally` overwrote `timerRef` without clearing it).
+4. `applyBlockIdRemap` walked `descendants`, so a nested node sharing a reminted id was
+   rewritten inside its parent's `content` JSON — a change that, because the transaction is
+   tagged for `onUpdate` to ignore, would never be marked dirty and never saved.
+5. **Retry forked a new conversation.** `lastSendRef` kept the pre-`meta` `conversationId`
+   (null on a first turn), so "Ask again" created a second conversation and orphaned the one
+   holding the partial answer the UI had just promised was saved.
+6. **Retry duplicated the user turn** — and C2's own comment asserted it did not.
+7. **The D-011 failure marker was fed back into the model's context**, so the model read its
+   own previous answer as ending in a sentence about a fetch failure.
+
+Plus: `describeFetchFailure` destroyed `err.name`, which broke `/api/ai/edit`'s
+client-abort suppression and would have thrown `TypeError: Invalid state` out of its own
+catch; `res.json()` timeouts were unlabelled; the NDJSON/SSE readers released the reader
+lock without cancelling the body (a latent version of the very leak C1 exists to close);
+and `send()`'s `isStreaming` guard is state and lags a task, so it was not real mutual
+exclusion.
+
+**The migration came out clean.** Reviewed by eye against both originals: the diff is
+exactly the four primary-key `left join`s plus two predicates per CTE, the `returns table`
+blocks are byte-identical (so `create or replace` is legal), no fan-out is possible, no new
+ambiguous references, and filtering before `limit 20` is correct because window functions
+evaluate after `WHERE`. Still **UNVERIFIED** — never executed.
+
+### Two findings deliberately not fixed
+
+- **Unmount/`pagehide` flush is a no-op while a save is in flight**, so Cmd-W inside one
+  save round-trip can lose the last keystrokes. Firing a second overlapping save there is
+  *exactly* BUG-2, so the serialization guard stays. The honest fix is B1 (diff-based
+  writes, making the final flush small and order-independent) plus B2 (optimistic
+  concurrency). Pre-A3 behaviour was not better — it attempted a write that could delete
+  other blocks. **Do not "fix" this by removing the guard.**
+- **`archivePage` is per-page; `lib/export/exportPage.ts` uses subtree semantics**
+  (`page.is_archived || ancestors.some(...)`). So for a child of an archived parent the
+  exporter files it under `Archive/` while retrieval keeps quoting it. Pre-existing
+  disagreement, surfaced by C4 rather than caused by it. **Decide which semantics wins
+  before someone reports it as a bug in C4** — my default is subtree (archiving a parent
+  should put its children away too, which is what Notion does), which means `archivePage`
+  should mark descendants and `getPageTree` should stop re-parenting orphans to the space
+  root. That is a behaviour change to page management, so it belongs in its own item, not
+  smuggled into a retrieval fix.

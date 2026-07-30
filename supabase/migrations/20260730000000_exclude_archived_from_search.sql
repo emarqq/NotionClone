@@ -115,8 +115,16 @@ grant execute on function hybrid_search(text, vector, uuid, int) to authenticate
 
 -- neighbor_search is reached only from graph expansion, and lib/rag/graph.ts
 -- already drops archived pages from the neighbour set — but that is a *caller*
--- guarantee, and the RPC is the thing with the SQL grant. Defend it here too, so
--- the invariant cannot be lost by a future caller.
+-- guarantee, and the RPC is the thing with the SQL grant. The `p.is_archived`
+-- predicate below defends it here too, so the invariant cannot be lost by a
+-- future caller.
+--
+-- Note the `fp` (attached-page) join is currently unreachable in this function:
+-- `where c.page_id = any(page_ids)` can only match page-type chunks, and the
+-- initial schema's CHECK forces `file_id is null` for those, so `fl` and therefore
+-- `fp` are always null. It is kept for symmetry with hybrid_search — if this RPC
+-- ever accepts file chunks, the predicate is already correct rather than newly
+-- missing. It costs nothing: the join is on a primary key.
 create or replace function neighbor_search(
   query_embedding vector(768),
   page_ids uuid[],

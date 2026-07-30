@@ -29,7 +29,7 @@
 - [x] **Meeting notes** — `createMeetingNoteAction` seeds an 8-block template (Details / Attendees / Agenda / Notes).
 - [x] **Theme system** — light/dark/system with no-flash hydration, accent color pickers, WCAG contrast foregrounds (`lib/theme/color.ts`).
 - [x] **Electron desktop shell** — `desktop/electron/`, loads a production build on :3777.
-- [x] **Test suite** — Vitest, `npm test`. **167 tests** (138 pass, 29 Docker-gated), up from 101 on 2026-07-26. The three files added on 2026-07-30 each pin a *specific historical data-loss bug*: `tests/db/replacePageBlocks.test.ts` (§E1 remint, §E6 delete scoping), `tests/llm/timeout.test.ts` (§L1, incl. that a slow-but-alive stream is NOT killed), `tests/api/aiChatStream.test.ts` (§R1), plus `tests/db/searchArchived.test.ts` (§R5, Docker-gated). Originally 101 tests (100 pass, 1 skip-guard) across the LLMProvider contract (all providers + a fake), the `hybrid_search` RPC against a disposable Postgres, the Stop hook's block/allow/bypass paths, the block-id parse rule, and the export walker. See "Testing" below.
+- [x] **Test suite** — Vitest, `npm test`. **175 tests** (146 pass, 29 Docker-gated), up from 101 on 2026-07-26. The three files added on 2026-07-30 each pin a *specific historical data-loss bug*: `tests/db/replacePageBlocks.test.ts` (§E1 remint, §E6 delete scoping), `tests/llm/timeout.test.ts` (§L1, incl. that a slow-but-alive stream is NOT killed), `tests/api/aiChatStream.test.ts` (§R1), plus `tests/db/searchArchived.test.ts` (§R5, Docker-gated). Originally 101 tests (100 pass, 1 skip-guard) across the LLMProvider contract (all providers + a fake), the `hybrid_search` RPC against a disposable Postgres, the Stop hook's block/allow/bypass paths, the block-id parse rule, and the export walker. See "Testing" below.
 - [x] **Cross-page block-id theft fixed** *(new 2026-07-29, CODE_REVIEW §E1)* — `replacePageBlocks` (`lib/db/blocks.ts`) now checks incoming ids against `blocks.page_id` and remints a fresh uuid for any id owned by another page, instead of silently re-parenting (and thereby deleting) the row out of its source page. `saveBlocksAction` returns the `{old→new}` remap; `Editor.tsx` rewrites the affected `blockId` attrs back into the doc via an out-of-history transaction so the next save doesn't remint again. Same pass replaced the string-concatenated `NOT IN` delete filter (CODE_REVIEW §E6, an injection-shaped query) with an explicit chunked id-list delete scoped to `page_id`.
 - [x] **Deadlines on every LLM / embedding fetch** *(new 2026-07-30, CODE_REVIEW §L1, roadmap C1)* — `lib/llm/timeout.ts`. Both providers' `chatStream` / `generate` / `embed` / `healthCheck` now carry an `AbortSignal` that fires after a budget (30 s generation, 15 s embedding, 5 s health check, all env-overridable; `0` opts out). `EmbeddingProvider.embed()` takes a signal — an interface change — and `retrieve()` forwards the request's signal. For **streams the deadline is idle, not total**: refreshed on every chunk, so a long generation is never truncated (D-010).
 - [x] **Partial assistant replies survive a mid-stream provider failure** *(new 2026-07-30, CODE_REVIEW §R1, roadmap C2)* — the failure is held instead of rethrown, whatever streamed is persisted tagged `_(response incomplete — <reason>)_`, and the SSE `error` event carries `partial` + `retryable` so the panel says the partial was saved and offers **Ask again**.
@@ -59,6 +59,8 @@
 - `components/editor/OutlinePanel.tsx:47` scans h1–h3 only, so H4 headings — which the slash menu can insert — never appear in the outline.
 - **No proven backup of the local database (HIGHEST).** Roadmap A1. The script, launchd plist and restore drill are written out in `docs/audit/SUPABASE-PRO-LEVERAGE.md` §5 and none of it is installed. A `db reset` on 2026-07-07 already destroyed a whole space.
 - **`replacePageBlocks` is still not transactional.** Upsert → delete → touch is three round-trips; a failure between them resurrects deleted blocks as phantoms. Roadmap A4, `CODE_REVIEW.md` §E4 — needs a Postgres function, so a Mac session.
+- **A Cmd-W landing inside a save round-trip can lose the last keystrokes.** The unmount/`pagehide` flush is a no-op while a save is in flight, because starting a second overlapping save is BUG-2. Closes with B1 + B2, not by removing the guard. See `docs/BUILD_LOG.md`.
+- **`archivePage` archives one page; the markdown exporter treats archiving as a subtree.** A child of an archived parent is filed under `Archive/` by the exporter but still retrieved by the assistant. Needs a decision on which semantics wins (my default: subtree).
 - **Every save still rewrites every block's position**, defeating the fractional indexing that exists. Typing one character on a 200-block page writes 200 rows and retriggers four background jobs. Roadmap B1, `CODE_REVIEW.md` §E5.
 - ~~Archived pages are retrieved and cited by the assistant~~ — **fix written, migration UNVERIFIED** (`supabase/migrations/20260730000000_exclude_archived_from_search.sql`, roadmap C4). The SQL has never been parsed by Postgres and its 11 tests self-skip without Docker. Do not treat this as done until a Mac session applies it on the scratch container.
 - `docs/FEATURE-PLAN.md` is stale — items 1, 2, 3, 7, and 9 are marked "not started" but have shipped.
@@ -72,7 +74,7 @@ Then, in order: apply C4's migration on the **scratch** container and unskip its
 ## Testing
 
 ```bash
-npm test          # vitest run  (167 tests: 138 pass, 29 skip without Docker)
+npm test          # vitest run  (175 tests: 146 pass, 29 skip without Docker)
 npm run typecheck # tsc --noEmit
 npm run lint      # eslint
 npm run build     # next build
@@ -102,6 +104,8 @@ Picked up a 67-minute-stale lock and an uncommitted working tree from a session 
 - `69f3c3e` **C2/§R1** — a partial answer now survives a mid-stream provider failure, tagged and retryable (D-011).
 - `cff7583` **C4/§R5** — archived pages excluded from both search RPCs (D-012). **Migration UNVERIFIED.**
 - `748bf72` + this entry — docs, and two sandbox toolchain workarounds recorded in `docs/BUILD_LOG.md` so no future session loses an hour to them (the Mac's `node_modules` breaks vitest on Linux; the repo mount forbids `unlink`, so git leaves stale `*.lock` files).
+
+Then reviewed the session's own diff adversarially before closing it out, which found **seven real defects in the code just committed** — including a 0 ms retry storm the A3 save guard had introduced, a retry that forked a second conversation, and a retry that duplicated the user's question. Fixed in `995f5e3` and `3ae04c1`. Two findings were deliberately left alone and written up in `docs/BUILD_LOG.md`: the in-flight-save window on Cmd-W (closes with B1+B2; **do not fix it by removing the serialization guard**) and the pre-existing per-page vs subtree disagreement between `archivePage` and the exporter.
 
 Decisions D-010, D-011, D-012 written to `docs/00_DECISION_LOG.md`. Nothing was escalated to Erik — every open question this session was an engineering one.
 
