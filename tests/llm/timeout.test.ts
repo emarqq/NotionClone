@@ -351,7 +351,95 @@ describe("describeFetchFailure preserves what the error actually was", () => {
     const promise = collect(
       createOllamaLLMProvider().chatStream({ messages: [{ role: "user", content: "hi" }] })
     );
-    await expect(promise).rejects.toThrow(/malformed response/);
+    // C5/§R8 later made the reader itself raise a MalformedResponseError with a
+    // more specific message, which describeFetchFailure now passes through
+    // untouched. Either way the property that matters holds: not "failed to reach".
+    await expect(promise).rejects.toThrow(/malformed response|expected NDJSON/);
     await expect(promise).rejects.not.toThrow(/failed to reach/);
+  });
+});
+
+// --- malformed stream output (§R8, roadmap C5) -----------------------------
+
+describe("stream readers classify malformed output (§R8)", () => {
+  /** A streaming 200 whose body is exactly `pieces`. */
+  function stubStreamBody(pieces: string[]) {
+    vi.stubGlobal("fetch", async () => {
+      const enc = new TextEncoder();
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            for (const p of pieces) controller.enqueue(enc.encode(p));
+            controller.close();
+          },
+        }),
+        { status: 200 }
+      );
+    });
+  }
+
+  const ndjson = (obj: unknown) => `${JSON.stringify(obj)}\n`;
+
+  it("ollama: a complete but non-JSON line is a malformed-response error", async () => {
+    process.env.LLM_TIMEOUT_MS = "10000";
+    stubStreamBody(["<html>502 Bad Gateway</html>\n"]);
+    const p = collect(
+      createOllamaLLMProvider().chatStream({ messages: [{ role: "user", content: "hi" }] })
+    );
+    await expect(p).rejects.toThrow(/expected NDJSON/);
+    // Must NOT be reported as unreachability: the server answered, and since
+    // D-011 records the reason in the user's conversation, the label matters.
+    await expect(p).rejects.not.toThrow(/failed to reach/);
+  });
+
+  it("ollama: the error quotes a bounded snippet, not the whole body", async () => {
+    process.env.LLM_TIMEOUT_MS = "10000";
+    stubStreamBody([`${"q".repeat(5000)}\n`]);
+    await expect(
+      collect(createOllamaLLMProvider().chatStream({ messages: [{ role: "user", content: "hi" }] }))
+    ).rejects.toThrow(/expected NDJSON/);
+  });
+
+  it("ollama: a TRUNCATED final record is dropped, not turned into an error", async () => {
+    // A killed Ollama leaves a partial last line. Everything complete has already
+    // been yielded; throwing here would convert a clean truncation into an error
+    // and (via §R1) tag the user's saved answer with a parse error explaining
+    // nothing.
+    process.env.LLM_TIMEOUT_MS = "10000";
+    stubStreamBody([
+      ndjson({ message: { content: "Hello" }, done: false }),
+      '{"message":{"content":"wor',
+    ]);
+
+    const deltas = await collect(
+      createOllamaLLMProvider().chatStream({ messages: [{ role: "user", content: "hi" }] })
+    );
+    expect(deltas.map((d) => d.text).join("")).toBe("Hello");
+  });
+
+  it("custom-finetune: a non-JSON SSE data frame is a malformed-response error", async () => {
+    process.env.LLM_TIMEOUT_MS = "10000";
+    stubStreamBody(["data: not json\n\n"]);
+    const p = collect(
+      createCustomFinetuneLLMProvider().chatStream({
+        messages: [{ role: "user", content: "hi" }],
+      })
+    );
+    await expect(p).rejects.toThrow(/expected JSON in an SSE data frame/);
+    await expect(p).rejects.not.toThrow(/failed to reach/);
+  });
+
+  it("custom-finetune: [DONE] still terminates cleanly", async () => {
+    process.env.LLM_TIMEOUT_MS = "10000";
+    stubStreamBody([
+      `data: ${JSON.stringify({ choices: [{ delta: { content: "hi" } }] })}\n\n`,
+      "data: [DONE]\n\n",
+    ]);
+    const deltas = await collect(
+      createCustomFinetuneLLMProvider().chatStream({
+        messages: [{ role: "user", content: "hi" }],
+      })
+    );
+    expect(deltas.map((d) => d.text).join("")).toBe("hi");
   });
 });

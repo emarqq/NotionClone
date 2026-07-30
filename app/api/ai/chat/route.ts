@@ -3,7 +3,8 @@ import "server-only";
 import type { NextRequest } from "next/server";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { retrieve, type RetrievedSource } from "@/lib/rag/retriever";
-import { buildRagPrompt } from "@/lib/rag/prompt";
+import { buildRagPrompt, MAX_QUESTION_CHARS } from "@/lib/rag/prompt";
+import { clientSafeMessage, logAndRedact } from "@/lib/llm/redact";
 import { getLLMProvider } from "@/lib/llm/registry";
 import type { ChatMessage } from "@/lib/llm/types";
 import {
@@ -143,6 +144,18 @@ export async function POST(request: NextRequest) {
       status: 400,
     });
   }
+  // Cap the question (CODE_REVIEW §L3). Nothing bounded this, so pasting a whole
+  // document into the ask box pushed the retrieved sources — and then the
+  // instructions — out of an 8k context window, and the model answered confidently
+  // from nothing.
+  if (message.length > MAX_QUESTION_CHARS) {
+    return new Response(
+      JSON.stringify({
+        error: `question is too long: ${message.length} characters, limit ${MAX_QUESTION_CHARS}.`,
+      }),
+      { status: 413 }
+    );
+  }
   const spaceId = body.spaceId ?? null;
   const graphExpand = body.graphExpand ?? false;
 
@@ -255,11 +268,17 @@ export async function POST(request: NextRequest) {
         // The tag is an italic marker in the message body rather than a column,
         // matching the pre-existing `_(response interrupted)_` convention, so
         // this needs no migration and no Mac session to ship.
+        // Redacted here as well as on the wire: this string is written into Erik's
+        // conversation history (D-011), and a note that reads "failed to reach
+        // http://localhost:11434/api/chat" is both an internal detail and noise in
+        // his own notes. The full message is logged below.
+        const failureReason = streamFailure ? clientSafeMessage(streamFailure) : null;
+
         if (fullText.length > 0) {
           let content = fullText;
           if (aborted) content = `${fullText}\n\n_(response interrupted)_`;
-          else if (streamFailure) {
-            content = `${fullText}\n\n_(response incomplete — ${streamFailure.message})_`;
+          else if (failureReason) {
+            content = `${fullText}\n\n_(response incomplete — ${failureReason})_`;
           }
           await addMessage(
             conversationId,
@@ -274,8 +293,11 @@ export async function POST(request: NextRequest) {
           // retry carries `isRetry` so the already-persisted user turn is not
           // written twice.
           send({
+            // Redacted before it leaves the server (§L4) — provider errors embed
+            // the model server's base URL. The full text is logged.
             type: "error",
-            message: streamFailure.message,
+            message: logAndRedact("ai/chat stream failed", streamFailure),
+            // (logAndRedact returns the same redaction used for the saved marker.)
             partial: fullText.length > 0,
             retryable: true,
           });
@@ -284,7 +306,7 @@ export async function POST(request: NextRequest) {
         }
         controller.close();
       } catch (error) {
-        const errMessage = error instanceof Error ? error.message : "Unknown error";
+        const errMessage = logAndRedact("ai/chat request failed", error);
         try {
           send({ type: "error", message: errMessage });
         } catch {

@@ -10,6 +10,7 @@ import type {
 } from "../../types";
 import {
   describeFetchFailure,
+  MalformedResponseError,
   healthCheckTimeoutMs,
   llmTimeoutMs,
   startDeadline,
@@ -61,7 +62,21 @@ async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<OpenAi
           if (!trimmed.startsWith("data:")) continue;
           const data = trimmed.slice(5).trim();
           if (data === "[DONE]") return;
-          if (data) yield JSON.parse(data) as OpenAiChunk;
+          if (!data) continue;
+          // A complete SSE event, so a parse failure is the server's fault, not a
+          // truncation — report it as malformed rather than letting a bare
+          // SyntaxError masquerade as a transport error (CODE_REVIEW §R8).
+          let parsed: OpenAiChunk;
+          try {
+            parsed = JSON.parse(data) as OpenAiChunk;
+          } catch (err) {
+            throw new MalformedResponseError(
+              `custom-finetune provider: expected JSON in an SSE data frame, got ${JSON.stringify(
+                data.slice(0, 120)
+              )} (${(err as Error).message})`
+            );
+          }
+          yield parsed;
         }
       }
     }

@@ -2,6 +2,15 @@ import "server-only";
 
 import type { NextRequest } from "next/server";
 import { getLLMProvider } from "@/lib/llm/registry";
+import { logAndRedact } from "@/lib/llm/redact";
+
+/**
+ * Input caps (CODE_REVIEW §L3). Characters, not tokens — there is no tokenizer in
+ * this codebase and adding one for a safety cap would be a dependency for nothing.
+ * ~4 chars/token, sized to leave the instructions inside an 8k window.
+ */
+const MAX_EDIT_TEXT_CHARS = 12_000;
+const MAX_INSTRUCTION_CHARS = 2_000;
 
 const TOOLS = ["summarize", "format", "organize", "rewrite", "continue"] as const;
 type Tool = (typeof TOOLS)[number];
@@ -73,6 +82,22 @@ export async function POST(req: NextRequest): Promise<Response> {
   if (typeof text !== "string" || text.trim().length === 0) {
     return jsonError("text is required", 400);
   }
+  // Nothing capped this before (CODE_REVIEW §L3): selecting an entire imported
+  // document and pressing "summarize" sent the whole thing, which on an 8k-context
+  // local model means the instructions fall out of the window and the tool returns
+  // confident nonsense. Refusing with a number the user can act on beats that.
+  if (text.length > MAX_EDIT_TEXT_CHARS) {
+    return jsonError(
+      `selection is too long for the model: ${text.length} characters, limit ${MAX_EDIT_TEXT_CHARS}. Select a smaller range.`,
+      413
+    );
+  }
+  if (typeof instruction === "string" && instruction.length > MAX_INSTRUCTION_CHARS) {
+    return jsonError(
+      `instruction is too long: ${instruction.length} characters, limit ${MAX_INSTRUCTION_CHARS}.`,
+      413
+    );
+  }
   if (tool === "rewrite" && (typeof instruction !== "string" || instruction.trim().length === 0)) {
     return jsonError("instruction is required for the rewrite tool", 400);
   }
@@ -96,8 +121,11 @@ export async function POST(req: NextRequest): Promise<Response> {
         if ((err as Error).name !== "AbortError") {
           controller.enqueue(
             sseEvent({
+              // Redacted: the provider errors carry the model server's base URL and
+              // this message goes straight to the renderer (CODE_REVIEW §L4). The
+              // full text is logged server-side.
               type: "error",
-              message: err instanceof Error ? err.message : String(err),
+              message: logAndRedact("ai/edit stream failed", err),
             })
           );
         }

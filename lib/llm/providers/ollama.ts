@@ -11,6 +11,7 @@ import type {
 } from "../types";
 import {
   describeFetchFailure,
+  MalformedResponseError,
   embeddingTimeoutMs,
   healthCheckTimeoutMs,
   llmTimeoutMs,
@@ -60,11 +61,38 @@ async function* readNdjson(body: ReadableStream<Uint8Array>): AsyncGenerator<Oll
       while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
         const line = buffer.slice(0, newlineIndex).trim();
         buffer = buffer.slice(newlineIndex + 1);
-        if (line) yield JSON.parse(line) as OllamaChatLine;
+        if (!line) continue;
+        // A newline-terminated line is a COMPLETE record, so a parse failure here
+        // means the server genuinely emitted something that is not NDJSON. Say so
+        // (CODE_REVIEW §R8): the raw SyntaxError was indistinguishable from any
+        // other stream failure, and D-011 now writes the reason into the user's
+        // conversation, so a wrong diagnosis becomes part of their notes.
+        let parsed: OllamaChatLine;
+        try {
+          parsed = JSON.parse(line) as OllamaChatLine;
+        } catch (err) {
+          throw new MalformedResponseError(
+            `ollama provider: expected NDJSON, got ${JSON.stringify(line.slice(0, 120))} (${
+              (err as Error).message
+            })`
+          );
+        }
+        yield parsed;
       }
     }
+    // Trailing bytes with no newline: the normal cause is a stream cut short
+    // mid-record (Ollama killed, socket dropped). Everything complete has already
+    // been yielded, so dropping a partial record is right — throwing here would
+    // turn a clean truncation into an error and, via §R1, tag the user's saved
+    // answer with a parse error that explains nothing.
     const rest = buffer.trim();
-    if (rest) yield JSON.parse(rest) as OllamaChatLine;
+    if (rest) {
+      try {
+        yield JSON.parse(rest) as OllamaChatLine;
+      } catch {
+        /* truncated final record — ignore */
+      }
+    }
   } finally {
     // Cancel, not merely release. A consumer that breaks out of the for-await
     // (which `for await` turns into iterator.return(), so this block does run)

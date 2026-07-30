@@ -126,6 +126,20 @@ export function startDeadline(ms: number, upstream?: AbortSignal): Deadline {
 }
 
 /**
+ * The provider was reachable and answered, but the answer did not parse
+ * (CODE_REVIEW §R8). Distinct from a transport failure because the two need
+ * different responses — retrying a wedged socket may help, retrying a model that
+ * emits garbage will not — and because D-011 writes the reason into the user's
+ * conversation, so "failed to reach" would be a lie recorded in their notes.
+ */
+export class MalformedResponseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MalformedResponseError";
+  }
+}
+
+/**
  * Uniform message for a fetch that failed, so a timeout reads as a timeout
  * instead of as the generic `fetch failed` / `This operation was aborted` that
  * both a wedged model and a real network error otherwise produce.
@@ -148,6 +162,8 @@ export function describeFetchFailure(
   // route then wrote to a stream whose consumer was gone and threw
   // `TypeError: Invalid state` out of its own catch.
   if (isAbortError(err)) return err as Error;
+  // Already correctly diagnosed by the stream reader — do not relabel it.
+  if (err instanceof MalformedResponseError) return err;
   // Not every failure here is a transport failure — `readNdjson` / `readSse`
   // JSON.parse their input, so malformed output from a *reachable* server would
   // otherwise be reported as "failed to reach", and (since D-011 writes the reason

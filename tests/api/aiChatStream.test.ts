@@ -11,7 +11,7 @@
  * Postgres, not Ollama.
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatDelta } from "@/lib/llm/types";
 
 // --- mocks (must be declared before the route is imported) -----------------
@@ -42,7 +42,12 @@ vi.mock("@/lib/rag/retriever", () => ({
   retrieve: vi.fn(async () => []),
 }));
 
-vi.mock("@/lib/rag/prompt", () => ({
+// Partial mock: only `buildRagPrompt` is stubbed (this file tests the route's
+// control flow, not prompt assembly — that is tests/rag/prompt.test.ts). The real
+// MAX_QUESTION_CHARS has to come through, since the route imports it to enforce
+// the §L3 cap.
+vi.mock(import("@/lib/rag/prompt"), async (importOriginal) => ({
+  ...(await importOriginal()),
   buildRagPrompt: () => ({ system: "sys", user: "usr" }),
 }));
 
@@ -68,6 +73,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 const { POST } = await import("@/app/api/ai/chat/route");
+const { MAX_QUESTION_CHARS } = await import("@/lib/rag/prompt");
 
 // --- helpers ---------------------------------------------------------------
 
@@ -78,6 +84,9 @@ interface SseEvent {
   partial?: boolean;
   retryable?: boolean;
 }
+
+/** The route logs the un-redacted error server-side (§L4); keep the suite quiet. */
+let errorLog: ReturnType<typeof vi.spyOn>;
 
 async function post(
   opts: { message?: string; isRetry?: boolean; conversationId?: string } = {}
@@ -113,7 +122,10 @@ beforeEach(() => {
   existingHistory = null;
   seenMessages = [];
   scripted(["Hello", " world"]);
+  errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
 });
+
+afterEach(() => errorLog.mockRestore());
 
 // --- the happy path, as a control -----------------------------------------
 
@@ -273,5 +285,65 @@ describe("POST /api/ai/chat — interruption markers stay out of the model's con
     expect(seenMessages.find((m) => m.role === "assistant")?.content).toBe(
       "A complete answer (with parens) and _emphasis_"
     );
+  });
+});
+
+// --- input caps and error redaction (roadmap C5, §L3 / §L4) ----------------
+
+describe("POST /api/ai/chat — input cap (§L3)", () => {
+  it("rejects an over-long question with 413 and states the limit", async () => {
+    // Nothing bounded this: pasting a whole document into the ask box pushed the
+    // retrieved sources — and then the instructions — out of an 8k context window,
+    // and the model answered confidently from nothing.
+    const request = new Request("http://localhost/api/ai/chat", {
+      method: "POST",
+      body: JSON.stringify({ message: "x".repeat(MAX_QUESTION_CHARS + 1) }),
+    });
+    const res = await POST(request as never);
+
+    expect(res.status).toBe(413);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(new RegExp(`limit ${MAX_QUESTION_CHARS}`));
+    // Refused before anything was written or any model was called.
+    expect(persisted).toHaveLength(0);
+  });
+
+  it("accepts a question exactly at the limit", async () => {
+    const events = await post({ message: "x".repeat(MAX_QUESTION_CHARS) });
+    expect(events.some((e) => e.type === "done")).toBe(true);
+  });
+});
+
+describe("POST /api/ai/chat — error redaction (§L4)", () => {
+  it("strips the model server's URL from the message sent to the client", async () => {
+    scripted(
+      ["Partial"],
+      new Error("ollama provider: failed to reach http://localhost:11434/api/chat: ECONNREFUSED")
+    );
+
+    const events = await post();
+    const error = events.find((e) => e.type === "error")!;
+
+    expect(error.message).not.toContain("11434");
+    expect(error.message).not.toContain("localhost");
+    expect(error.message).toContain("the model server");
+    // The diagnosis the user can act on survives.
+    expect(error.message).toContain("ECONNREFUSED");
+  });
+
+  it("still logs the un-redacted error server-side", async () => {
+    scripted(["Partial"], new Error("failed to reach http://localhost:11434"));
+    await post();
+    expect(errorLog).toHaveBeenCalled();
+  });
+
+  it("persists the partial with the redacted reason, not the raw URL", async () => {
+    // The marker goes into Erik's notes (D-011), so the URL must not be in it
+    // either — and the reason has to still explain something.
+    scripted(["Partial"], new Error("failed to reach http://localhost:11434: ECONNREFUSED"));
+    await post();
+    const assistant = persisted.find((m) => m.role === "assistant")!;
+    expect(assistant.content).not.toContain("11434");
+    expect(assistant.content).toMatch(/_\(response incomplete — .*ECONNREFUSED.*\)_/);
   });
 });
