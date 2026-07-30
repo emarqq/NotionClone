@@ -38,7 +38,7 @@ justification for D-004.
       *Also capture a baseline row count (pages/blocks/chunks) so the sanity gate has a
       real floor and future loss is detectable.*
 
-- [ ] **A2 🧪 — Fix BUG-1: cross-page block-id theft.** `CODE_REVIEW.md` §E1.
+- [x] **A2 🧪 — Fix BUG-1: cross-page block-id theft.** ✅ `e61e823` + `3a5fcf8` (2026-07-30). Server-side remint; 15 unit tests. Not yet driven against Postgres — see BUILD_LOG "Needs a Mac session". `CODE_REVIEW.md` §E1.
       **Decided (see D-007): fix it server-side.** `replacePageBlocks` must refuse to
       adopt a block row already owned by a different page — pre-check the incoming ids
       against `select id, page_id from blocks where id = any($1)`, and remint any id whose
@@ -47,7 +47,7 @@ justification for D-004.
       also fires on drag-and-drop and would orphan `comment_threads.block_id` anchors.
       Closes the hole regardless of how the id arrived.
 
-- [ ] **A3 🧪 — Fix BUG-2: overlapping saves delete newly-typed blocks.** `CODE_REVIEW.md` §E3.
+- [x] **A3 🧪 — Fix BUG-2: overlapping saves delete newly-typed blocks.** ✅ `e61e823` (2026-07-30). In-flight mutex + save sequence in `Editor.tsx`; both (a) and (b) done. Not yet driven in a browser. `CODE_REVIEW.md` §E3.
       Two parts, both required:
       (a) an in-flight mutex on the debounced flush — never two saves for one page at once,
           and clear `dirty` only when a save *completes*;

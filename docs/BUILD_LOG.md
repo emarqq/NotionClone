@@ -56,6 +56,16 @@ account plus a Free-vs-Pro breakdown. Headline conclusions:
       run once, this project has no proven backup. **Highest priority of anything here.**
 - [ ] Capture a real baseline: page/block/chunk row counts, so the backup sanity gate's
       floor can be tuned and so any future data loss is detectable.
+- [ ] **Verify A2 end-to-end in the running app** (`e61e823`). Copy a whole block out of
+      page A, paste it into page B, save, then confirm in SQL that **page A still has its
+      row** and page B's copy carries a *different* id — and that a second save does not
+      remint again (i.e. the `Editor.tsx` attr rewrite actually landed). Unit-tested
+      against a fake PostgREST builder only; never run against Postgres.
+- [ ] **Verify A3 in a browser** (`e61e823`). Type continuously for ~10 s on a page and
+      confirm exactly one save is in flight at a time (network panel), that the indicator
+      settles on "Saved", and that nothing typed during a save is lost.
+- [ ] Housekeeping: `rm -f .git/*.stale.* .git/objects/*/tmp_obj_*` — orphaned temp files
+      from sandboxed sessions, which cannot unlink (see the toolchain note above).
 
 ## Blocked — needs Erik
 _(nothing yet)_
@@ -116,3 +126,57 @@ mkdir -p /sessions/<session>/node_modules && cd /tmp && npm init -y \
   && npm i @rolldown/binding-linux-arm64-gnu@1.1.5 \
   && cp -r node_modules/@rolldown /sessions/<session>/node_modules/
 ```
+
+**Second toolchain quirk — stale git `*.lock` files.** The repo mount permits `rename()`
+but **not `unlink()`**, so every git command that updates a ref or the index leaves its
+`HEAD.lock` / `index.lock` behind (`warning: unable to unlink … Operation not permitted`)
+and the *next* git command dies with `Unable to create … File exists`. `rm` cannot clear
+them either. Workaround: **rename them out of the way** — `mv HEAD.lock HEAD.lock.stale`
+works where `rm` does not. A sandboxed session should put a wrapper in front of git:
+```bash
+for f in .git/*.lock .git/refs/heads/*.lock .git/logs/refs/heads/*.lock; do
+  mv "$f" "$f.stale.$RANDOM" 2>/dev/null
+done
+```
+Left `.git/*.stale.*` strays behind (unremovable from here, harmless). **A Mac session
+should `rm -f .git/*.stale.* .git/*.tmp_obj_* .git/objects/*/tmp_obj_*` once** — there is a
+pile of orphaned temp objects from earlier sandboxed sessions.
+
+### FINISHED — A2 (BUG-1) + A3 (BUG-2) + §E6 — `e61e823`, tests in `3a5fcf8`
+
+Both HIGH-severity editor data-loss paths are closed. Full rationale is in the commit
+messages; the short version:
+
+- **A2 / BUG-1 — cross-page block-id theft.** `replacePageBlocks` pre-checks every
+  incoming id against `blocks.page_id` and **remints** any id owned by a different page
+  rather than re-parenting the row. The `{old→new}` remap flows back through
+  `saveBlocksAction` into `Editor.tsx`, which rewrites the `blockId` attrs in an
+  out-of-history transaction — without that the editor keeps sending the stolen id and the
+  row churns a new uuid on every save, detaching comment anchors as it goes. Server-side
+  as decided in D-007.
+- **A3 / BUG-2 — overlapping saves deleting newly-typed blocks.** In-flight mutex +
+  monotonic save sequence; `dirty` now clears on *completion* and only if the doc is still
+  the snapshot that was sent; edits arriving mid-save flush immediately. Two tabs on one
+  page remains last-writer-wins — that needs B2's optimistic concurrency, not this.
+- **§E6** — the `NOT IN` delete filter was built by interpolating ids into a quoted
+  PostgREST list. Replaced with a chunked explicit id-list delete scoped to `page_id`, so
+  it is now structurally incapable of touching another page's row.
+
+**Evidence.** `npm run typecheck` clean, `npm run lint` clean, `npm test`:
+```
+ ✓ tests/hooks/enforceStatusUpdate.test.ts (17 tests)
+ ✓ tests/llm/providerContract.test.ts (41 tests)
+ ✓ tests/db/replacePageBlocks.test.ts (15 tests)
+ ✓ tests/export/pmWalk.test.ts (12 tests)
+ ✓ tests/editor/blockId.test.ts (11 tests)
+ ✓ tests/db/hybridSearch.test.ts (20 tests | 19 skipped)
+ Test Files  6 passed (6)
+      Tests  97 passed | 19 skipped (116)
+```
+The 15 new tests run against `tests/db/fakeSupabase.ts`, a deliberately minimal in-memory
+PostgREST stand-in that **throws on any chain it does not model** and refuses an
+unfiltered delete, so a future refactor fails loudly instead of passing vacuously.
+
+**`UNVERIFIED` against the real stack** (sandboxed session, brief §3): the remint path has
+not been exercised against Postgres, and the `Editor.tsx` attr rewrite has not been driven
+in a browser. Queued below.
