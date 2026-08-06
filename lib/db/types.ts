@@ -148,3 +148,116 @@ export type DbViewType = "table" | "board" | "calendar";
 export interface DbView { id: string; database_page_id: string; name: string; type: DbViewType; position: string; config: DbViewConfig; created_at: string; updated_at: string; }
 
 export interface DatabaseRowBundle { page: Page; blocks: Block[]; properties: DbProperty[]; values: Record<string, DbValue>; }
+
+/* --- Google Calendar connector (see supabase/migrations/…_google_calendar.sql) --- */
+
+export type CalendarAccountStatus = "connected" | "needs_reauth" | "disconnected";
+
+export interface CalendarAccount {
+  id: string;
+  provider: "google";
+  account_email: string;
+  /** Never sent to the client — stripped by lib/db/calendar.ts read helpers. */
+  access_token: string | null;
+  /** Never sent to the client. */
+  refresh_token: string | null;
+  token_expires_at: string | null;
+  scope: string | null;
+  status: CalendarAccountStatus;
+  last_error: string | null;
+  last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** An account row safe to hand to a client component (no tokens). */
+export type CalendarAccountPublic = Omit<
+  CalendarAccount,
+  "access_token" | "refresh_token" | "token_expires_at" | "scope"
+>;
+
+export interface CalendarRow {
+  id: string;
+  account_id: string;
+  google_calendar_id: string;
+  summary: string;
+  description: string | null;
+  time_zone: string | null;
+  background_color: string | null;
+  foreground_color: string | null;
+  /** owner | writer | reader | freeBusyReader — below `writer` means read-only. */
+  access_role: string | null;
+  is_primary: boolean;
+  is_selected: boolean;
+  is_write_target: boolean;
+  sync_token: string | null;
+  last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type CalendarEventCategory =
+  | "class"
+  | "quiz"
+  | "exam"
+  | "assignment"
+  | "interview"
+  | "coffee_chat"
+  | "application"
+  | "deadline"
+  | "other";
+
+export interface CalendarAttendee {
+  email: string | null;
+  displayName: string | null;
+  responseStatus: string | null;
+  organizer: boolean;
+  self: boolean;
+  optional: boolean;
+}
+
+export interface CalendarEvent {
+  id: string;
+  calendar_id: string;
+  google_event_id: string;
+  ical_uid: string | null;
+  recurring_event_id: string | null;
+  status: "confirmed" | "tentative" | "cancelled";
+  summary: string;
+  description: string | null;
+  location: string | null;
+  is_all_day: boolean;
+  /** Always set. For all-day events these are the bracketing UTC midnights —
+   *  query/sort by these, but RENDER all-day events from start_date/end_date. */
+  starts_at: string;
+  ends_at: string;
+  /** All-day only. `end_date` is INCLUSIVE (Google's exclusive end is undone
+   *  on the way in by lib/calendar/normalize.ts). */
+  start_date: string | null;
+  end_date: string | null;
+  time_zone: string | null;
+  html_link: string | null;
+  meeting_url: string | null;
+  color_id: string | null;
+  attendees: CalendarAttendee[];
+  organizer: { email: string | null; displayName: string | null } | null;
+  etag: string | null;
+  google_updated_at: string | null;
+  category: CalendarEventCategory;
+  category_source: "auto" | "manual";
+  /** The attached note page, if any. */
+  page_id: string | null;
+  managed_by_app: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** An event plus the display attributes of the calendar it came from, and the
+ *  linked note's title/space when there is one. What the calendar UI renders. */
+export type CalendarEventWithContext = CalendarEvent & {
+  calendar_summary: string;
+  calendar_color: string | null;
+  calendar_access_role: string | null;
+  note_title: string | null;
+  note_space_slug: string | null;
+};

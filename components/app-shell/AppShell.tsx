@@ -16,6 +16,7 @@ import AiPanel from "@/components/ai-panel/AiPanel";
 import { rehydrateAiPanelStore, useAiPanelStore } from "@/components/ai-panel/store";
 import ResizeHandle from "@/components/app-shell/ResizeHandle";
 import SettingsModal from "@/components/settings/SettingsModal";
+import RecordingBar from "@/components/recording/RecordingBar";
 import { rehydrateEditorPrefsStore } from "@/components/editor/editorPrefsStore";
 
 export interface AppShellProps {
@@ -158,6 +159,10 @@ export default function AppShell({ sidebar, spaces, children }: AppShellProps) {
         {/* Floating settings gear, pinned bottom-right of the content column
             (i.e. left of the AI panel, clear of the left comment gutter). */}
         <SettingsModal />
+        {/* Meeting recorder. Mounted here, outside the route subtree, so that
+            navigating between pages mid-meeting neither unmounts the bar nor
+            interrupts capture. */}
+        <RecordingBar />
       </div>
       <div
         className={clsx(

@@ -23,6 +23,11 @@ const PAGE_B = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb";
 function seed(): void {
   exec(`
     delete from chunks;
+    -- Delete files before spaces/pages: files_space_id_fkey has no ON DELETE
+    -- CASCADE, so rows another suite left in the shared scratch container made
+    -- this seed fail with an FK violation (order-dependent, so it only bit on a
+    -- second run against a dirty container).
+    delete from files;
     delete from pages;
     delete from spaces;
 

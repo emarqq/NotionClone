@@ -489,9 +489,43 @@ function buildMenu() {
 // App lifecycle
 // ---------------------------------------------------------------------
 
+/**
+ * Microphone access for the meeting recorder.
+ *
+ * Two separate gates have to open on macOS:
+ *  1. Chromium's own permission prompt for the renderer — auto-granted here,
+ *     because the only page ever loaded is our own localhost app.
+ *  2. The OS-level TCC grant, requested via askForMediaAccess. This requires
+ *     NSMicrophoneUsageDescription in Info.plist (see package.json build.mac
+ *     .extendInfo) — without it macOS kills the app instead of prompting.
+ *
+ * Caveat worth knowing: this build is unsigned (`identity: null`), and macOS
+ * keys TCC grants to code identity, so a rebuild can silently lose an existing
+ * microphone grant. If recording stops seeing the mic after a rebuild, remove
+ * the app under System Settings → Privacy & Security → Microphone and relaunch.
+ * Recording in Chrome at http://127.0.0.1:3000 sidesteps this entirely.
+ */
+function setUpMediaPermissions() {
+  const { session, systemPreferences } = require("electron");
+
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === "media" || permission === "audioCapture");
+  });
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) =>
+    permission === "media" || permission === "audioCapture"
+  );
+
+  if (process.platform === "darwin") {
+    systemPreferences.askForMediaAccess("microphone").catch((err) => {
+      log(`microphone access request failed: ${err.message}`);
+    });
+  }
+}
+
 app.whenReady().then(async () => {
   buildMenu();
   createSplash();
+  setUpMediaPermissions();
 
   const result = await runStartupSequence();
 

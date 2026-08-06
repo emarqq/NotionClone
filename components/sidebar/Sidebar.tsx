@@ -1,4 +1,4 @@
-import { Clock, Home, Star } from "lucide-react";
+import { CalendarDays, Clock, Home, Star } from "lucide-react";
 import type { Page, Space } from "@/lib/db/types";
 import {
   getFavorites,
@@ -63,6 +63,11 @@ export default async function Sidebar() {
       <nav className="flex-1 space-y-5 px-2 pb-8 pt-2">
         <section>
           <SidebarLink href="/home" label="Home" icon={<Home size={14} />} />
+          <SidebarLink
+            href="/calendar"
+            label="Calendar"
+            icon={<CalendarDays size={14} />}
+          />
           <AskAiLink />
         </section>
         {favorites.length > 0 && (

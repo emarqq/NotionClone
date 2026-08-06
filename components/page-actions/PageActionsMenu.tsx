@@ -12,7 +12,9 @@ import {
   Download,
   FileText,
   FileType,
+  FileUp,
   Link as LinkIcon,
+  Mic,
   Notebook,
   Pencil,
   Smile,
@@ -35,6 +37,9 @@ import {
   turnPageIntoDatabaseAction,
 } from "@/app/actions/databases";
 import IconPickerOverlay from "@/components/page-actions/IconPickerOverlay";
+import { useImportStore } from "@/components/editor/importStore";
+import { useRecordingStore } from "@/components/recording/recordingStore";
+import { runMarkdownImport } from "@/components/editor/markdownImport";
 import { PageIcon } from "@/lib/icons";
 import { pageExportUrl } from "@/lib/export/clientUrls";
 
@@ -99,6 +104,14 @@ export default function PageActionsMenu({
   // inline-rename UI.
   const [editMode, setEditMode] = useState<"rename" | "icon" | "export" | null>(null);
   const [editValue, setEditValue] = useState("");
+
+  // "Import Markdown" needs a live editor to insert into, and this same menu
+  // also renders on sidebar/Recents/Favorites rows for pages that are NOT open.
+  // Showing the item only when the mounted editor is editing *this* page is
+  // what stops an import from landing in whatever page happened to be open.
+  // (Database pages render a table, not an editor, so they never register.)
+  const editorPageId = useImportStore((s) => s.pageId);
+  const canImport = editorPageId === page.id;
 
   // The panel is portaled to <body> and positioned with `fixed` coordinates
   // computed from the trigger's on-screen rect, so it can flip above the
@@ -254,6 +267,25 @@ export default function PageActionsMenu({
   const handleExportPdf = () => {
     onClose();
     window.open(pageExportUrl(page.id, "pdf"), "_blank", "noopener,noreferrer");
+  };
+
+  const handleImportMarkdown = () => {
+    // Read the editor at click time, not from the render-time selector: closing
+    // the menu unmounts this component, and the picker outlives it.
+    const { editor } = useImportStore.getState();
+    onClose();
+    if (editor) void runMarkdownImport(editor, "end");
+  };
+
+  const handleRecordMeeting = () => {
+    // Only opens the recorder — capture lives in RecordingBar (mounted by
+    // AppShell), which is what lets it outlive this menu unmounting on click.
+    onClose();
+    useRecordingStore.getState().open({
+      pageId: page.id,
+      spaceSlug,
+      pageTitle: page.title || "Untitled",
+    });
   };
 
   const handleMoveToSpace = (target: MenuSpace) => {
@@ -432,6 +464,28 @@ export default function PageActionsMenu({
                     <ChevronRight size={13} className="shrink-0 text-neutral-400" />
                   </span>
                 </MenuItem>
+                {canImport && (
+                  <MenuItem onClick={handleImportMarkdown}>
+                    <FileUp size={13} className="shrink-0" />
+                    <span className="flex flex-col">
+                      Import Markdown
+                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                        Appends to the end of this page
+                      </span>
+                    </span>
+                  </MenuItem>
+                )}
+                {canImport && (
+                  <MenuItem onClick={handleRecordMeeting}>
+                    <Mic size={13} className="shrink-0" />
+                    <span className="flex flex-col">
+                      Record meeting
+                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                        Transcript appends to the end of this page
+                      </span>
+                    </span>
+                  </MenuItem>
+                )}
                 {otherSpaces.map((space) => (
                   <MenuItem key={space.id} onClick={() => handleMoveToSpace(space)}>
                     <CornerUpRight size={13} className="shrink-0" />

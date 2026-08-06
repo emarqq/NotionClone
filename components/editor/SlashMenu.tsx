@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChainedCommands, Editor } from "@tiptap/core";
 import clsx from "clsx";
-import { ArrowRightCircle, type LucideIcon } from "lucide-react";
+import { ArrowRightCircle, FileUp, Mic, type LucideIcon } from "lucide-react";
 
 import { textBeforePosition } from "./aiContext";
 import { useAIProposalStore } from "./aiProposalStore";
 import { BLOCK_ITEMS } from "./blockItems";
+import { useImportStore } from "./importStore";
+import { runMarkdownImport } from "./markdownImport";
+import { useRecordingStore } from "@/components/recording/recordingStore";
 
 interface SlashItem {
   title: string;
@@ -17,6 +20,11 @@ interface SlashItem {
   run?: (chain: ChainedCommands) => ChainedCommands;
   /** AI items instead trigger a proposal at the (already-deleted) query position. */
   ai?: (editor: Editor, position: number, breadcrumb?: string) => void;
+  /**
+   * Async side-effecting items (file pickers etc.) that insert their own
+   * content. Run after the query range is deleted, like `ai`.
+   */
+  action?: (editor: Editor, breadcrumb?: string) => void;
 }
 
 const ITEMS: SlashItem[] = [
@@ -33,6 +41,32 @@ const ITEMS: SlashItem[] = [
         selectedText: textBeforePosition(editor, position),
         breadcrumb,
         docSize: editor.state.doc.content.size,
+      });
+    },
+  },
+  {
+    title: "Import Markdown file",
+    keywords: "import markdown md file upload obsidian",
+    icon: FileUp,
+    // Inserts at the caret, replacing the now-empty line the command was typed
+    // on (see insertBlocks in markdownImport.ts).
+    action: (editor) => void runMarkdownImport(editor, "cursor"),
+  },
+  {
+    title: "Record meeting",
+    keywords: "record meeting audio transcript transcribe call interview mic",
+    icon: Mic,
+    // Only opens the recorder; capture itself is owned by RecordingBar in
+    // AppShell, so it survives this menu unmounting and any later navigation.
+    // The transcript always appends at the end of the page, never at the caret —
+    // by the time it exists the caret is wherever the user has since typed.
+    action: (_editor, breadcrumb) => {
+      const { pageId } = useImportStore.getState();
+      if (!pageId) return;
+      useRecordingStore.getState().open({
+        pageId,
+        spaceSlug: window.location.pathname.split("/").filter(Boolean)[0] ?? "",
+        pageTitle: breadcrumb || "Untitled",
       });
     },
   },
@@ -127,6 +161,11 @@ export default function SlashMenu({
     if (item.ai) {
       editor.chain().focus().deleteRange(range).run();
       item.ai(editor, range.from, breadcrumb);
+      return;
+    }
+    if (item.action) {
+      editor.chain().focus().deleteRange(range).run();
+      item.action(editor, breadcrumb);
       return;
     }
     item.run?.(editor.chain().focus().deleteRange(range)).run();

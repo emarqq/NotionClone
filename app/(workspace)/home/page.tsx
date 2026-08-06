@@ -1,11 +1,29 @@
 import Link from "next/link";
+import AskBrainBar from "@/components/ai-panel/AskBrainBar";
+import UpcomingEvents from "@/components/home/UpcomingEvents";
+import { getUpcomingEvents } from "@/lib/db/calendar";
 import { getFavorites, getRecents, getSpaces } from "@/lib/db/pages";
-import type { Page, Space } from "@/lib/db/types";
+import type { CalendarEventWithContext, Page, Space } from "@/lib/db/types";
 import { formatShortDate } from "@/lib/format";
 import { DefaultPageIcon, PageIcon } from "@/lib/icons";
-import AskBrainBar from "@/components/ai-panel/AskBrainBar";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Guarded the same way as the page-side event lookup: `calendar_events` may
+ * not exist yet on a database that hasn't picked up the Google Calendar
+ * migration, and a missing-table error here must never break Home.
+ */
+async function getUpcomingEventsSafe(
+  limit: number
+): Promise<CalendarEventWithContext[]> {
+  try {
+    return await getUpcomingEvents(limit);
+  } catch (err) {
+    console.error("getUpcomingEventsSafe: lookup failed:", err);
+    return [];
+  }
+}
 
 function greetingForNow(): string {
   const hour = new Date().getHours();
@@ -73,10 +91,11 @@ function PageCardGrid({
 }
 
 export default async function HomePage() {
-  const [spaces, recents, favorites] = await Promise.all([
+  const [spaces, recents, favorites, upcomingEvents] = await Promise.all([
     getSpaces(),
     getRecents(),
     getFavorites(),
+    getUpcomingEventsSafe(6),
   ]);
   const spaceById = new Map(spaces.map((space) => [space.id, space]));
 
@@ -92,6 +111,8 @@ export default async function HomePage() {
       <div className="mt-6">
         <AskBrainBar />
       </div>
+
+      <UpcomingEvents events={upcomingEvents} />
 
       <section className="mt-10">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">

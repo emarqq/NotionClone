@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Backlinks from "@/components/backlinks/Backlinks";
+import EventNoteBanner from "@/components/calendar/EventNoteBanner";
 import DatabaseTableView from "@/components/database/DatabaseTableView";
 import Editor from "@/components/editor/Editor";
 import TitleInput from "@/components/editor/TitleInput";
@@ -12,6 +13,7 @@ import ContentsPanel from "@/components/page-nav/ContentsPanel";
 import SubPagesList from "@/components/page-nav/SubPagesList";
 import TabSync from "@/components/tabs/TabSync";
 import { getBlocks } from "@/lib/db/blocks";
+import { getEventForPage } from "@/lib/db/calendar";
 import {
   getDatabaseRows,
   getOptionsForDatabase,
@@ -21,8 +23,27 @@ import {
 } from "@/lib/db/databases";
 import { getSignedUrl } from "@/lib/db/files";
 import { getAncestors, getChildren, getPage, getSpaces } from "@/lib/db/pages";
+import type { CalendarEventWithContext } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * The event this page is the note for, if any — powers EventNoteBanner.
+ *
+ * Guarded because `calendar_events` may not exist yet on a database that
+ * hasn't picked up the Google Calendar migration: a missing-table error here
+ * must never break rendering an ordinary page.
+ */
+async function getEventForPageSafe(
+  pageId: string
+): Promise<CalendarEventWithContext | null> {
+  try {
+    return await getEventForPage(pageId);
+  } catch (err) {
+    console.error(`getEventForPageSafe: lookup failed for page ${pageId}:`, err);
+    return null;
+  }
+}
 
 export default async function PageView({
   params,
@@ -33,12 +54,13 @@ export default async function PageView({
   const page = await getPage(pageId);
   if (!page || page.is_archived) notFound();
 
-  const [blocks, spaces, ancestors, children, coverUrl] = await Promise.all([
+  const [blocks, spaces, ancestors, children, coverUrl, linkedEvent] = await Promise.all([
     getBlocks(pageId),
     getSpaces(),
     getAncestors(pageId),
     getChildren(pageId),
     page.cover_url ? getSignedUrl(page.cover_url).catch(() => null) : null,
+    getEventForPageSafe(pageId),
   ]);
   const parent = ancestors.length > 0 ? ancestors[ancestors.length - 1] : null;
 
@@ -69,6 +91,7 @@ export default async function PageView({
           />
         )}
         <div className="mx-auto max-w-5xl px-6 py-12">
+          {linkedEvent && <EventNoteBanner event={linkedEvent} />}
           <header className="mb-8">
             {(!page.icon || !page.cover_url) && (
               <div className="mb-1 flex items-center gap-1">
@@ -122,6 +145,7 @@ export default async function PageView({
         />
       )}
       <div className="mx-auto max-w-3xl px-6 py-12">
+        {linkedEvent && <EventNoteBanner event={linkedEvent} />}
         <header className="mb-8">
           {(!page.icon || !page.cover_url) && (
             <div className="mb-1 flex items-center gap-1">

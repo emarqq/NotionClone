@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Check, Download, Link as LinkIcon, MoreHorizontal, Star } from "lucide-react";
+import { Check, Download, Link as LinkIcon, Mic, MoreHorizontal, Star } from "lucide-react";
 import clsx from "clsx";
 import type { Page } from "@/lib/db/types";
 import { formatShortDate } from "@/lib/format";
@@ -13,6 +13,7 @@ import {
 } from "@/app/actions/pages";
 import PageActionsMenu from "@/components/page-actions/PageActionsMenu";
 import ExportMenu from "@/components/page-actions/ExportMenu";
+import { useRecordingStore } from "@/components/recording/recordingStore";
 
 export interface PageMetaBarProps {
   page: Page;
@@ -190,6 +191,21 @@ export default function PageMetaBar({
         >
           Edited {editedLabel}
         </span>
+        <button
+          type="button"
+          title="Record meeting into this page"
+          aria-label="Record meeting into this page"
+          onClick={() =>
+            useRecordingStore.getState().open({
+              pageId: page.id,
+              spaceSlug,
+              pageTitle: page.title || "Untitled",
+            })
+          }
+          className={ICON_BTN_CLASS}
+        >
+          <Mic size={14} />
+        </button>
         <button
           type="button"
           title={favorite ? "Remove from favorites" : "Add to favorites"}

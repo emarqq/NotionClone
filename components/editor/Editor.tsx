@@ -3,35 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EditorContent, useEditor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import TaskList from "@tiptap/extension-task-list";
-import TaskItem from "@tiptap/extension-task-item";
-import Table from "@tiptap/extension-table";
-import TableRow from "@tiptap/extension-table-row";
-import TableHeader from "@tiptap/extension-table-header";
-import TableCell from "@tiptap/extension-table-cell";
-import Placeholder from "@tiptap/extension-placeholder";
-import Image from "@tiptap/extension-image";
-import Underline from "@tiptap/extension-underline";
-import Highlight from "@tiptap/extension-highlight";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import clsx from "clsx";
 
 import type { Block } from "@/lib/db/types";
 import { saveBlocksAction } from "@/app/actions/editor";
 import { blocksFromDoc, docFromBlocks } from "./blockSync";
-import { Autocorrect } from "./extensions/autocorrect";
-import { AutoCapitalize } from "./extensions/auto-capitalize";
-import { BlockId } from "./extensions/block-id";
-import { Callout } from "./extensions/callout";
-import { Comment } from "./extensions/comment";
-import { Link } from "./extensions/link";
-import { ListExit } from "./extensions/list-exit";
-import { DragHandle } from "./extensions/drag-handle";
-import { MoveBlock } from "./extensions/move-block";
-import { PageMention } from "./extensions/page-mention";
-import { SelectAll } from "./extensions/select-all";
-import { Toggle, ToggleContent, ToggleSummary } from "./extensions/toggle";
+import { EDITOR_EXTENSIONS } from "./editorExtensions";
 import SlashMenu from "./SlashMenu";
 import MentionMenu from "./MentionMenu";
 import LinkEditor from "./LinkEditor";
@@ -42,6 +20,8 @@ import { useCommentStore } from "./commentStore";
 import CommentsPanel from "@/components/comments/CommentsPanel";
 import AIToolsMenu from "./AIToolsMenu";
 import AIProposalCard from "./AIProposalCard";
+import ImportStatusToast from "./ImportStatusToast";
+import { useImportStore } from "./importStore";
 import "./editor.css";
 
 const SAVE_DEBOUNCE_MS = 1500;
@@ -223,49 +203,9 @@ export default function Editor({
 
   const editor = useEditor({
     immediatelyRender: false,
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3, 4] },
-      }),
-      TaskList,
-      TaskItem.configure({ nested: false }),
-      Table.configure({ resizable: false }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      Image,
-      Underline,
-      Highlight.configure({ multicolor: true }),
-      Link.configure({
-        openOnClick: true,
-        autolink: true,
-        linkOnPaste: true,
-        HTMLAttributes: {
-          target: "_blank",
-          rel: "noopener noreferrer",
-          class: "editor-link",
-        },
-      }),
-      Callout,
-      Comment,
-      Toggle,
-      ToggleSummary,
-      ToggleContent,
-      PageMention,
-      BlockId,
-      ListExit,
-      MoveBlock,
-      DragHandle,
-      SelectAll,
-      Autocorrect,
-      AutoCapitalize,
-      Placeholder.configure({
-        placeholder: ({ node }) =>
-          node.type.name === "toggleSummary"
-            ? "Toggle title…"
-            : "Type '/' for commands…",
-      }),
-    ],
+    // Defined in ./editorExtensions so the schema can be built without React
+    // (tests validate generated content against it).
+    extensions: EDITOR_EXTENSIONS,
     content: initialDoc,
     editorProps: {
       attributes: {
@@ -342,6 +282,15 @@ export default function Editor({
     editorRef.current = editor;
   }, [editor]);
 
+  // Publish this editor (with its pageId) so PageActionsMenu's "Import
+  // Markdown" item can reach it — and so a menu opened on a *different* page's
+  // sidebar row can tell that it must not.
+  useEffect(() => {
+    if (!editor) return;
+    useImportStore.getState().register(editor, pageId);
+    return () => useImportStore.getState().unregister(pageId);
+  }, [editor, pageId]);
+
   const label =
     saveState === "pending" || saveState === "saving"
       ? "Saving…"
@@ -379,6 +328,7 @@ export default function Editor({
             <AIProposalCard editor={editor} />
           </>
         )}
+        <ImportStatusToast />
       </div>
       {/*
         AIToolsMenu (Tiptap's BubbleMenu) always renders a placeholder <div>

@@ -26,7 +26,11 @@
       "target": "dir",
       "icon": "../icon.icns",
       "identity": null,
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Notion Clone records meeting audio so it can transcribe it into your notes.",
+        "NSAudioCaptureUsageDescription": "Notion Clone captures computer audio so both sides of a meeting appear in the transcript."
+      }
     }
   }
 }

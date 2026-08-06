@@ -1,44 +1,20 @@
-import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 import { requireEnv } from "@/lib/env";
-
-/**
- * Cookie-based Supabase client for Server Components, Server Actions and
- * Route Handlers. Uses the anon key; respects the signed-in user's session.
- */
-export async function createServerSupabase(): Promise<SupabaseClient> {
-  const cookieStore = await cookies();
-
-  return createServerClient(
-    requireEnv("NEXT_PUBLIC_SUPABASE_URL", process.env.NEXT_PUBLIC_SUPABASE_URL),
-    requireEnv(
-      "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ),
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // `cookies().set` throws when called from a Server Component.
-            // Safe to ignore: middleware refreshes the session cookie.
-          }
-        },
-      },
-    }
-  );
-}
 
 /**
  * Service-role Supabase client. Bypasses RLS — server-only.
  * Throws immediately if imported/executed in the browser.
+ *
+ * This is the ONLY Supabase client in the app. Auth was removed on 2026-08-04
+ * (single-user, self-hosted, bound to localhost), so there is no session to
+ * respect and no cookie-scoped anon client: every read and write goes through
+ * the service role. Nothing in the schema is scoped by user — no table has a
+ * `user_id`/`owner_id` column and no policy references `auth.uid()` — so this
+ * is the same data every request already saw when a login existed.
+ *
+ * The blanket `to authenticated using (true)` RLS policies on every table are
+ * left in place deliberately: the service role bypasses them, and they still
+ * deny a stray direct PostgREST connection made with the anon key.
  */
 export function createServiceSupabase(): SupabaseClient {
   if (typeof window !== "undefined") {

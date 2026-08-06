@@ -11,7 +11,7 @@
 > to something that could still be lost in one command.
 
 ## What's actually built
-- [x] **Auth + session** — email/password login (`app/login/page.tsx`), session refresh and redirect-to-login in `middleware.ts` → `lib/supabase/middleware.ts`, RLS policies on **all 21 tables** (the last four were added 2026-07-26).
+- [x] **No auth (deliberate, 2026-08-04)** — the email/password login, `middleware.ts` and `lib/supabase/middleware.ts` were **removed**; `createServiceSupabase()` is the only Supabase client. RLS policies remain on **all 21 tables** (the last four were added 2026-07-26) but are bypassed by the service role. Single-user, localhost-only; nothing is scoped by user id.
 - [x] **Page tree & hierarchy** — recursive tree to arbitrary depth (`components/sidebar/PageTree.tsx`, `PageRow.tsx`), full HTML5 drag-and-drop with nest-as-child vs reorder-as-sibling drop zones, descendant-cycle and cross-space rejection (`components/sidebar/dnd.ts`), fractional indexing so drags never mass-reindex (`lib/positions.ts`).
 - [x] **Page CRUD & metadata** — create/rename/archive/delete/duplicate/move/move-to-space, favorites, recents, icons (curated ~100-icon Lucide set in `lib/icons.tsx`), cover images with drag-to-reposition (`app/actions/pages.ts`, `components/page-actions/PageActionsMenu.tsx`).
 - [x] **Block editor** — Tiptap 2.27 with 13 block types persisted one row per top-level node (`components/editor/blockSync.ts`). Custom extensions: callout, toggle (hand-rolled, avoids Tiptap Pro), block-id assignment, Alt+↑/↓ block move, scoped select-all, autocorrect. Working slash menu, bubble menu with "Turn into", tables, task lists, image paste → upload.

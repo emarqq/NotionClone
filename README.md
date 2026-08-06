@@ -19,7 +19,8 @@ npm install
 npm run dev           # http://localhost:3000
 ```
 
-> `supabase db reset` wipes the Supabase Auth user — re-create your login afterward.
+> No login: the app has no authentication (removed 2026-08-04). It is single-user and
+> self-hosted, so keep it bound to localhost — anyone who can reach the port has full access.
 
 ## Commands
 
