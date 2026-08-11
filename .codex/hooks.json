@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/erikmarquardt/Hub/OS/projects/NotionClone/.codex/hooks/enforce-status-update.sh'"
+          }
+        ]
+      }
+    ]
+  }
+}
